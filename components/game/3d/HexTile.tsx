@@ -5,7 +5,7 @@ import type { Group } from "three";
 import { useFrame } from "@react-three/fiber";
 
 import type { Tile } from "@/lib/game/types";
-import { axialToWorld } from "./hexMath";
+import { axialToWorld, reliefNoise } from "./hexMath";
 import {
   FarmModel,
   ForestDecor,
@@ -13,6 +13,11 @@ import {
   HillsDecor,
   MineModel,
 } from "./models/Models";
+
+// Amplitude verticale appliquée aux tuiles jouables. Faible (≤ 12 cm) pour
+// que les voisines restent lisibles ; le sol périphérique va beaucoup plus
+// haut (60 cm) en empruntant la même fonction `reliefNoise`.
+const TILE_RELIEF_AMPLITUDE = 0.12;
 
 type Props = {
   tile: Tile;
@@ -24,13 +29,13 @@ export function HexTile({ tile, clickable, onClick }: Props) {
   const [hovered, setHovered] = useState(false);
   const groupRef = useRef<Group>(null);
   const [x, z] = axialToWorld(tile.q, tile.r);
+  const baselineY = reliefNoise(x, z) * TILE_RELIEF_AMPLITUDE;
 
-  // Hover lift : ~12 cm de soulèvement quand la tuile est clickable et
-  // survolée. Seul indice visuel pour signaler la cliquabilité — pas de
-  // recoloration de la texture (les modèles KayKit partagent un atlas).
+  // La tuile a une Y de base déterministe (relief partagé avec le sol),
+  // sur laquelle se superpose le hover lift quand elle est clickable.
   useFrame((_, delta) => {
     if (!groupRef.current) return;
-    const target = clickable && hovered ? 0.14 : 0;
+    const target = baselineY + (clickable && hovered ? 0.14 : 0);
     const lerp = Math.min(1, delta * 12);
     groupRef.current.position.y += (target - groupRef.current.position.y) * lerp;
   });

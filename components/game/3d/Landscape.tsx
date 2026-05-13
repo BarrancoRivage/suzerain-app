@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
+import { PlaneGeometry } from "three";
 
+import { reliefNoise } from "./hexMath";
 import {
   StandaloneHill,
   StandaloneMountain,
@@ -9,21 +11,19 @@ import {
   StandaloneTree,
 } from "./models/Models";
 
-// Sol périphérique : plan continu vert au niveau du bas des tuiles hex
-// (Y ≈ -0.866 après KAYKIT_SCALE). Les tuiles jouables apparaissent comme
-// des plateaux légèrement surélevés au-dessus du paysage, leurs flancs en
-// terre étant visibles à la frontière.
-//
-// Décor : props KayKit standalone (tree_single, rock_single, hill_single)
-// + montagnes (mountain_*) au loin, scattered dans un anneau autour du
-// disque jouable. Pas de tuiles hex au-delà de la zone interactive.
+// Sol périphérique avec relief. PlaneGeometry 96² sommets, chaque vertex
+// déplacé en Y par une somme de sinus pondérée par un easing radial : flat
+// dans le disque jouable (rayon ≤ 6.5), ramp doux entre 6.5 et 8, full
+// déplacement au-delà. Le décor (arbres, rochers, collines, montagnes)
+// échantillonne la même fonction `groundY` pour suivre les bosses du sol.
 
-// Le sol périphérique remonte presque pile au niveau du haut des tuiles —
-// 5 cm sous le grass top, juste assez pour qu'on devine un léger relief à
-// la frontière sans donner l'impression d'un plateau de jeu surélevé.
 const TILE_BOTTOM_Y = -0.05;
 const GROUND_COLOR = "#7BA549";
 const GROUND_SIZE = 56;
+const GROUND_SEGMENTS = 96;
+const PLAYABLE_FLAT_RADIUS = 6.5;
+const RAMP_END = 8.0;
+const RELIEF_AMPLITUDE = 0.6;
 
 const DECOR_INNER = 7.0;
 const DECOR_OUTER_NEAR = 11;
@@ -40,17 +40,59 @@ type DecorItem = {
   seed: number;
 };
 
+function easedRamp(dist: number): number {
+  const t = Math.max(
+    0,
+    Math.min(1, (dist - PLAYABLE_FLAT_RADIUS) / (RAMP_END - PLAYABLE_FLAT_RADIUS)),
+  );
+  return t * t * (3 - 2 * t);
+}
+
+function groundY(x: number, z: number): number {
+  const dist = Math.sqrt(x * x + z * z);
+  return (
+    TILE_BOTTOM_Y + reliefNoise(x, z) * RELIEF_AMPLITUDE * easedRamp(dist)
+  );
+}
+
+function buildGroundGeometry() {
+  const geo = new PlaneGeometry(
+    GROUND_SIZE,
+    GROUND_SIZE,
+    GROUND_SEGMENTS,
+    GROUND_SEGMENTS,
+  );
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const lx = pos.getX(i);
+    const ly = pos.getY(i);
+    // Plan tourné -π/2 autour de X : local (x, y, 0) → world (x, 0, -y).
+    // Donc world_z pour ce vertex = -local_y. On échantillonne `noise2D`
+    // sur les coords world pour que `groundY(x, z)` (utilisée par le
+    // décor) renvoie exactement la hauteur de ce vertex.
+    const wx = lx;
+    const wz = -ly;
+    const dist = Math.sqrt(wx * wx + wz * wz);
+    pos.setZ(i, reliefNoise(wx, wz) * RELIEF_AMPLITUDE * easedRamp(dist));
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
 export function Landscape() {
   const decor = useMemo(buildDecor, []);
+  const groundGeometry = useMemo(buildGroundGeometry, []);
+
   return (
     <>
       <mesh
+        geometry={groundGeometry}
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, TILE_BOTTOM_Y, 0]}
         receiveShadow
       >
-        <planeGeometry args={[GROUND_SIZE, GROUND_SIZE]} />
-        <meshStandardMaterial color={GROUND_COLOR} roughness={1} />
+        <meshStandardMaterial color={GROUND_COLOR} roughness={1} flatShading />
       </mesh>
 
       {decor.map((item, i) => (
@@ -61,9 +103,12 @@ export function Landscape() {
 }
 
 function DecorObject({ item }: { item: DecorItem }) {
+  // Le décor s'aligne sur la hauteur du sol à ses coords XZ — il monte avec
+  // les bosses au lieu de flotter à TILE_BOTTOM_Y.
+  const y = groundY(item.x, item.z);
   return (
     <group
-      position={[item.x, TILE_BOTTOM_Y, item.z]}
+      position={[item.x, y, item.z]}
       rotation={[0, item.rotation, 0]}
       scale={item.scale}
     >
