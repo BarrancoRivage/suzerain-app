@@ -9,7 +9,7 @@ import { HEX_HEIGHT } from "./hexMath";
 // frontière entre carte de jeu (tuiles hex surélevées) et toile de fond.
 
 const GROUND_RADIUS = 22;
-const GROUND_COLOR = "#C8B68E";
+const GROUND_COLOR = "#7E9560";
 const GROUND_Y = -HEX_HEIGHT / 2 - 0.005;
 
 // Anneau de placement du décor. Le disque jouable (rayon axial 3) atteint
