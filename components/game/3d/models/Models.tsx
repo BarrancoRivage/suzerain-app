@@ -14,6 +14,8 @@ const KAYKIT_SCALE = Math.sqrt(3) / 2;
 const PATHS = {
   // Tiles (chunk hexagonal avec dirt sides et top texturé)
   hexGrass: "/models/kaykit/tiles/hex_grass.gltf",
+  hexGrassSlopedLow: "/models/kaykit/tiles/hex_grass_sloped_low.gltf",
+  hexGrassSlopedHigh: "/models/kaykit/tiles/hex_grass_sloped_high.gltf",
   hexWater: "/models/kaykit/tiles/hex_water.gltf",
 
   // Buildings (faction rouge — cohérent avec la palette `blood` Suzerain)
@@ -115,8 +117,8 @@ export function ForestDecor({ seed }: { seed: number }) {
   return <KayKit path={path} />;
 }
 
-// Rotation sur toutes les variantes hills (avec et sans trees) pour de la
-// variété — la version `_trees` rend les collines plus reconnaissables.
+// Décor de colline posé SUR une tuile hex_grass (pas de tuile sloped).
+// Rotation sur 6 variantes (A/B/C + `_trees`) pour visibilité.
 const HILLS_PATHS = [
   PATHS.hillsA,
   PATHS.hillsATrees,

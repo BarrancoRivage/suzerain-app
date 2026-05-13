@@ -68,7 +68,7 @@ export function HexTile({ tile, clickable, onClick }: Props) {
         onClick();
       }}
     >
-      {tile.biome === "water" ? <HexWaterTile /> : <HexGrassTile />}
+      <TileBase tile={tile} />
       {/* Le contenu de la tuile (bâtiment ou décor de biome) est réduit pour
           ne pas remplir entièrement le hex — laisse respirer le bord. */}
       {tile.biome !== "water" && (
@@ -79,6 +79,13 @@ export function HexTile({ tile, clickable, onClick }: Props) {
       {tile.biome === "water" && <WaterTopDressing tile={tile} />}
     </group>
   );
+}
+
+// La tuile : eau (surface bleue) ou hex_grass (plat) pour tout le reste.
+// Forêt et colline sont des décors empilés par-dessus le grass.
+function TileBase({ tile }: { tile: Tile }) {
+  if (tile.biome === "water") return <HexWaterTile />;
+  return <HexGrassTile />;
 }
 
 // Bâtiment > biome decor > rien. Quand un bâtiment est posé, on fait disparaître
