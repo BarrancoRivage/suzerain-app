@@ -57,6 +57,24 @@ pnpm typecheck   # tsc --noEmit (strict)
 
 ---
 
+## Lancer avec Docker
+
+Alternative à `pnpm dev` si tu préfères isoler l'environnement. Prérequis : [Docker Desktop](https://www.docker.com/products/docker-desktop/) (ou équivalent).
+
+```bash
+# Dev avec HMR — la source est montée, node_modules vit dans un volume nommé
+docker compose up --build
+
+# Valider le build de prod en local (image standalone, non-root, healthcheck /api/health)
+docker compose --profile prod up --build
+```
+
+Dans les deux cas, l'app écoute sur [http://localhost:3000](http://localhost:3000). Les secrets Supabase sont lus depuis `.env.local` (récupéré via `vercel env pull`) — le fichier est optionnel : sans lui l'app démarre mais `/play` lèvera une erreur.
+
+Layout : `Dockerfile` multi-stage (`base` → `deps` → `dev` / `builder` → `runner`). L'étape `runner` part de `node:24-alpine` et n'embarque que `.next/standalone` + `.next/static` + `public/`, sans pnpm ni devDependencies — image finale autour de 300 Mo, conteneur tournant en non-root avec `HEALTHCHECK` sur `/api/health`.
+
+---
+
 ## Pousser sur GitHub
 
 ```bash
