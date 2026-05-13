@@ -76,12 +76,11 @@ Remplace `USERNAME` par ton compte GitHub. Nom de dépôt recommandé : `suzerai
 1. Va sur [vercel.com](https://vercel.com) → **New Project** → **Import** depuis GitHub.
 2. Sélectionne le dépôt `suzerain-game`.
 3. Vercel détecte Next.js automatiquement.
-4. Ajouter une variable d'environnement `DATABASE_URL` pointant vers la **connection string Supabase**, mode *Transaction* (port 6543, requis pour serverless) :
-   - Supabase Dashboard → **Settings → Database → Connection pooling** → URI → mode **Transaction** → copier.
-   - Format : `postgres://postgres.<ref>:<pwd>@aws-0-<region>.pooler.supabase.com:6543/postgres?sslmode=require`
-   - À déclarer pour les environnements *Production* (et *Preview* si tu veux que les previews tapent une DB).
+4. **Installer l'intégration Supabase** (une fois) : projet Vercel → **Storage** → **Browse Marketplace** → **Supabase** → **Connect**. L'intégration provisionne automatiquement (entre autres) `POSTGRES_URL` (pooler, port 6543) que le code lit en fallback de `DATABASE_URL`. Rien à configurer à la main.
 5. Exécute le snippet de schéma ci-dessus dans le SQL Editor Supabase (une seule fois).
 6. Clique **Deploy**.
+
+> Override possible : si tu veux pointer la prod vers une autre DB (read replica, etc.), ajoute `DATABASE_URL` dans les env vars Vercel — le code la priorise sur `POSTGRES_URL`.
 
 Le déploiement se fait automatiquement à chaque push sur `main`. Les autres branches déclenchent des **Preview Deployments** avec une URL dédiée.
 

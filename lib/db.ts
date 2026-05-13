@@ -7,11 +7,20 @@ let cachedPool: Pool | null = null;
 function getPool(): Pool {
   if (cachedPool) return cachedPool;
 
-  const url = process.env.DATABASE_URL;
+  // Résolution dans cet ordre :
+  //   - DATABASE_URL : valeur custom (utilisée par le compose en dev).
+  //   - POSTGRES_URL : pool transaction, auto-provisionné par l'intégration
+  //     Vercel↔Supabase (port 6543). C'est la cible en prod.
+  //   - POSTGRES_PRISMA_URL : même origine, certains projets n'ont que celle-ci.
+  const url =
+    process.env.DATABASE_URL ??
+    process.env.POSTGRES_URL ??
+    process.env.POSTGRES_PRISMA_URL;
+
   if (!url) {
     throw new Error(
-      "DATABASE_URL non défini. En dev : `docker compose up`. " +
-        "En prod : ajouter la connection string Supabase (Settings → Database → Connection pooling, mode `Transaction`) dans Vercel.",
+      "Aucune connection string Postgres. En dev : `docker compose up`. " +
+        "En prod : vérifier que l'intégration Vercel↔Supabase est installée (provisionne POSTGRES_URL automatiquement).",
     );
   }
 
