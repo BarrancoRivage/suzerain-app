@@ -17,7 +17,7 @@ export function HexBoard({ state, clickableTileKey, onTileClick }: Props) {
       <Canvas
         shadows
         dpr={[1, 2]}
-        camera={{ position: [0, 10, 12], fov: 38, near: 0.1, far: 60 }}
+        camera={{ position: [0, 12, 15], fov: 38, near: 0.1, far: 80 }}
         gl={{ antialias: true }}
       >
         <Scene

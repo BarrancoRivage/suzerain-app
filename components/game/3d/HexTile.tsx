@@ -60,7 +60,7 @@ export function HexTile({ tile, clickable, onClick }: Props) {
           onClick();
         }}
       >
-        <cylinderGeometry args={[HEX_SIZE * 0.97, HEX_SIZE * 0.97, HEX_HEIGHT, 6]} />
+        <cylinderGeometry args={[HEX_SIZE, HEX_SIZE, HEX_HEIGHT, 6]} />
         <meshStandardMaterial
           color={fillColor}
           roughness={0.95}
