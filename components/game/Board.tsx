@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import {
   loadGameAction,
   placeBuildingAction,
 } from "@/app/play/actions";
-import { GRID_SIZE, type BuildingKind, type GameState } from "@/lib/game/types";
+import { biomeAt, isBuildable } from "@/lib/game/biome";
+import type { BuildingKind, GameState } from "@/lib/game/types";
 import { BuildPanel } from "./BuildPanel";
 import { ResourcePanel } from "./ResourcePanel";
-import { TileCell } from "./Tile";
+import { BOARD_HEIGHT, BOARD_WIDTH, IsoTile } from "./IsoTile";
 
 export function Board() {
   const [state, setState] = useState<GameState | null>(null);
@@ -32,6 +33,13 @@ export function Board() {
       cancelled = true;
     };
   }, []);
+
+  const sortedTiles = useMemo(() => {
+    if (state === null) return null;
+    return [...state.tiles].sort((a, b) =>
+      a.x + a.y - (b.x + b.y) || a.y - b.y,
+    );
+  }, [state]);
 
   function handleTileClick(x: number, y: number) {
     if (selectedKind === null || pending) return;
@@ -56,7 +64,7 @@ export function Board() {
     );
   }
 
-  if (state === null) {
+  if (state === null || sortedTiles === null) {
     return (
       <div className="max-w-md mx-auto mt-16 text-center font-serif italic text-ink/40">
         Le royaume s&rsquo;éveille…
@@ -65,28 +73,28 @@ export function Board() {
   }
 
   return (
-    <div className="w-full max-w-3xl mx-auto flex flex-col items-center gap-10 py-10 px-6">
+    <div className="w-full flex flex-col items-center gap-10">
       <ResourcePanel state={state} />
 
-      <div
-        className="grid gap-1.5 w-full max-w-md"
-        style={{
-          gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))`,
-        }}
-      >
-        {state.tiles.map((tile) => {
+      <IsoBoardCanvas>
+        {sortedTiles.map((tile) => {
+          const biome = biomeAt(state.playerId, tile.x, tile.y);
           const clickable =
-            selectedKind !== null && tile.building === null && !pending;
+            selectedKind !== null &&
+            tile.building === null &&
+            isBuildable(biome) &&
+            !pending;
           return (
-            <TileCell
+            <IsoTile
               key={`${tile.x}-${tile.y}`}
               tile={tile}
+              biome={biome}
               clickable={clickable}
               onClick={() => handleTileClick(tile.x, tile.y)}
             />
           );
         })}
-      </div>
+      </IsoBoardCanvas>
 
       <BuildPanel
         selected={selectedKind}
@@ -96,6 +104,44 @@ export function Board() {
 
       <div className="h-4 text-xs italic font-serif text-blood/80">
         {actionError ?? " "}
+      </div>
+    </div>
+  );
+}
+
+function IsoBoardCanvas({ children }: { children: React.ReactNode }) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useLayoutEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const update = () => {
+      const width = el.clientWidth;
+      setScale(Math.min(1, width / BOARD_WIDTH));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={wrapperRef}
+      className="relative w-full max-w-[576px] mx-auto"
+      style={{ aspectRatio: `${BOARD_WIDTH} / ${BOARD_HEIGHT}` }}
+    >
+      <div
+        className="absolute top-0 left-0"
+        style={{
+          width: BOARD_WIDTH,
+          height: BOARD_HEIGHT,
+          transform: `scale(${scale})`,
+          transformOrigin: "0 0",
+        }}
+      >
+        {children}
       </div>
     </div>
   );
