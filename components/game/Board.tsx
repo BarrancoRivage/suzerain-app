@@ -18,7 +18,7 @@ const HexBoard = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="w-full h-[520px] flex items-center justify-center font-serif italic text-ink/40">
+      <div className="absolute inset-0 flex items-center justify-center font-serif italic text-ink/40">
         La carte se déploie…
       </div>
     ),
@@ -64,15 +64,17 @@ export function Board() {
 
   if (loadError !== null) {
     return (
-      <div className="max-w-md mx-auto mt-16 rounded-md border border-blood/40 bg-parchment/80 p-6 text-center font-serif text-blood">
-        {loadError}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="rounded-md border border-blood/40 bg-parchment/80 p-6 font-serif text-blood">
+          {loadError}
+        </div>
       </div>
     );
   }
 
   if (state === null) {
     return (
-      <div className="max-w-md mx-auto mt-16 text-center font-serif italic text-ink/40">
+      <div className="absolute inset-0 flex items-center justify-center font-serif italic text-ink/40">
         Le royaume s&rsquo;éveille…
       </div>
     );
@@ -85,25 +87,32 @@ export function Board() {
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto flex flex-col items-center gap-6 py-8 px-6">
-      <ResourcePanel state={state} />
-
+    <>
       <HexBoard
         state={state}
         clickableTileKey={isClickable}
         onTileClick={handleTileClick}
       />
 
-      <BuildPanel
-        selected={selectedKind}
-        onSelect={setSelectedKind}
-        disabled={pending}
-        resources={state.resources}
-      />
-
-      <div className="h-4 text-xs italic font-serif text-blood/80">
-        {actionError ?? " "}
+      <div className="pointer-events-none absolute inset-x-0 top-20 z-10 flex justify-center px-6">
+        <div className="pointer-events-auto">
+          <ResourcePanel state={state} />
+        </div>
       </div>
-    </div>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-8 z-10 flex flex-col items-center gap-3 px-6">
+        <div className="pointer-events-auto">
+          <BuildPanel
+            selected={selectedKind}
+            onSelect={setSelectedKind}
+            disabled={pending}
+            resources={state.resources}
+          />
+        </div>
+        <div className="h-4 text-xs italic font-serif text-blood/80">
+          {actionError ?? " "}
+        </div>
+      </div>
+    </>
   );
 }

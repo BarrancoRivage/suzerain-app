@@ -13,11 +13,11 @@ type Props = {
 
 export function HexBoard({ state, clickableTileKey, onTileClick }: Props) {
   return (
-    <div className="w-full h-[520px] rounded-md border border-ink/15 bg-parchment overflow-hidden">
+    <div className="absolute inset-0">
       <Canvas
         shadows
         dpr={[1, 2]}
-        camera={{ position: [0, 8, 10], fov: 42, near: 0.1, far: 50 }}
+        camera={{ position: [0, 10, 12], fov: 38, near: 0.1, far: 60 }}
         gl={{ antialias: true }}
       >
         <Scene
