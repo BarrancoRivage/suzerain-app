@@ -1,4 +1,5 @@
 import { Pool, type PoolClient } from "pg";
+import { parse as parseConnectionString } from "pg-connection-string";
 
 import { STATE_VERSION, type GameState } from "./game/types";
 
@@ -24,23 +25,35 @@ function getPool(): Pool {
     );
   }
 
-  cachedPool = new Pool({ connectionString: url, max: 5, ssl: resolveSsl(url) });
+  // On parse l'URL et on passe des paramètres explicites au Pool, sans
+  // `connectionString`. Pourquoi : la précédente version (qui combinait
+  // `connectionString` + un `ssl` explicite) marchait en théorie, mais en
+  // pratique `pg-connection-string` réintroduisait un `ssl` calé sur le
+  // `sslmode=require` de l'URL Supabase et pouvait écraser notre override
+  // selon l'ordre du merge interne — d'où des "self-signed certificate in
+  // certificate chain" intermittents en prod malgré le fix.
+  const parsed = parseConnectionString(url);
+
+  cachedPool = new Pool({
+    host: parsed.host ?? undefined,
+    port: parsed.port ? Number(parsed.port) : undefined,
+    user: parsed.user,
+    password: parsed.password,
+    database: parsed.database ?? undefined,
+    ssl: resolveSsl(parsed.host ?? ""),
+    max: 5,
+  });
   return cachedPool;
 }
 
-// Postgres local (compose) : pas de SSL. Tout host distant (Supabase pooler, etc.) :
-// TLS activé mais sans vérification de chaîne — le cert du pooler Supabase est
-// signé par leur CA, absente du bundle CA Node par défaut, ce qui fait échouer
-// la validation stricte ("self-signed certificate in certificate chain"). La
-// connexion reste chiffrée ; l'auth user/pwd reste l'unique gate d'accès.
-function resolveSsl(url: string): false | { rejectUnauthorized: boolean } {
-  try {
-    const host = new URL(url).hostname;
-    if (host === "postgres" || host === "localhost" || host === "127.0.0.1") {
-      return false;
-    }
-  } catch {
-    // URL malformée : on laisse pg lever une erreur explicite à la connexion.
+// Postgres local (compose) : pas de SSL. Tout host distant (Supabase pooler,
+// etc.) : TLS activé mais sans vérification de chaîne — le cert du pooler
+// Supabase est signé par leur CA, absente du bundle CA Node par défaut, ce
+// qui fait échouer la validation stricte. La connexion reste chiffrée ;
+// l'auth user/pwd reste l'unique gate d'accès.
+function resolveSsl(host: string): false | { rejectUnauthorized: boolean } {
+  if (host === "postgres" || host === "localhost" || host === "127.0.0.1") {
+    return false;
   }
   return { rejectUnauthorized: false };
 }
