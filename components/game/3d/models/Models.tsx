@@ -20,7 +20,6 @@ import { useGLTF } from "@react-three/drei";
 // binaire supplémentaire à committer.
 
 const PATHS = {
-  farmTower: "/models/castle/tower-square.glb",
   mineSupport: "/models/dungeon/wood-support.glb",
   mineStructure: "/models/dungeon/wood-structure.glb",
   mineOpening: "/models/dungeon/wall-opening.glb",
@@ -52,8 +51,7 @@ Object.values(PATHS).forEach((p) => useGLTF.preload(p));
 type Override = string | { byMatName: Record<string, string>; default?: string };
 
 const MATERIAL_OVERRIDES: Readonly<Record<string, Override>> = {
-  // Castle Kit & Mini Dungeon — sans texture, donc on impose une couleur.
-  [PATHS.farmTower]: "#C8B79A", // pierre claire de tour
+  // Mini Dungeon — sans texture, donc on impose une couleur.
   [PATHS.mineSupport]: "#5C3F22",
   [PATHS.mineStructure]: "#5C3F22",
   [PATHS.mineOpening]: "#8B7F70",
@@ -113,12 +111,75 @@ function useClonedScene(path: string): Object3D {
 }
 
 // --- Bâtiments ---
+//
+// Ferme : chaumière médiévale procédurale. On a abandonné `tower-square.glb`
+// de Castle Kit qui sans sa texture ne lit pas comme une ferme — juste un
+// parallélépipède neutre. Le pack Kenney qu'on a copié ne contient pas de
+// modèle de maison rurale, donc on reconstruit en primitives.
+//
+// Composition : socle de murs torchis (BoxGeometry), toit de chaume en
+// prisme triangulaire (CylinderGeometry 3 segments, axe couché +Z par
+// rotation -π/2 autour de X, apex vers le haut), cheminée pierre, porte
+// sombre, lucarne sur le pignon.
 
-const FARM_SCALE = 0.32;
+const FARM_WALL_W = 0.7;
+const FARM_WALL_H = 0.32;
+const FARM_WALL_D = 0.78;
+const FARM_ROOF_R = 0.36;
+const FARM_ROOF_LEN = FARM_WALL_D + 0.12;
 
 export function FarmModel() {
-  const scene = useClonedScene(PATHS.farmTower);
-  return <primitive object={scene} scale={FARM_SCALE} />;
+  return (
+    <group>
+      <mesh position={[0, FARM_WALL_H / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[FARM_WALL_W, FARM_WALL_H, FARM_WALL_D]} />
+        <meshStandardMaterial color="#E6D2A8" roughness={0.9} />
+      </mesh>
+
+      <mesh
+        position={[0, FARM_WALL_H + FARM_ROOF_R / 2, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        castShadow
+        receiveShadow
+      >
+        <cylinderGeometry
+          args={[FARM_ROOF_R, FARM_ROOF_R, FARM_ROOF_LEN, 3]}
+        />
+        <meshStandardMaterial color="#7A5836" roughness={0.95} flatShading />
+      </mesh>
+
+      <mesh
+        position={[0.18, FARM_WALL_H + FARM_ROOF_R * 0.55, -0.2]}
+        castShadow
+      >
+        <boxGeometry args={[0.09, 0.28, 0.09]} />
+        <meshStandardMaterial color="#8C8077" roughness={1} />
+      </mesh>
+      <mesh
+        position={[0.18, FARM_WALL_H + FARM_ROOF_R * 0.9, -0.2]}
+        castShadow
+      >
+        <boxGeometry args={[0.12, 0.04, 0.12]} />
+        <meshStandardMaterial color="#5F564C" roughness={1} />
+      </mesh>
+
+      <mesh
+        position={[0, 0.12, FARM_WALL_D / 2 + 0.001]}
+        castShadow
+      >
+        <boxGeometry args={[0.16, 0.22, 0.02]} />
+        <meshStandardMaterial color="#3D2818" roughness={0.95} />
+      </mesh>
+
+      <mesh
+        position={[FARM_WALL_W / 2 + 0.001, FARM_WALL_H + FARM_ROOF_R * 0.3, 0]}
+        rotation={[0, 0, Math.PI / 2]}
+      >
+        <cylinderGeometry args={[0.05, 0.05, 0.01, 12]} />
+        <meshStandardMaterial color="#2A2018" roughness={1} />
+      </mesh>
+    </group>
+  );
 }
 
 const MINE_SCALE = 0.28;
