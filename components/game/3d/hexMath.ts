@@ -15,12 +15,13 @@ export function axialToWorld(q: number, r: number): [number, number] {
 }
 
 // Bruit partagé entre tuiles jouables et sol périphérique pour que les deux
-// suivent le même pattern de relief. Somme de sinus à 3 fréquences ; rangé
-// dans [-0.97, 0.97]. Les consommateurs scalent par leur propre amplitude.
+// suivent le même pattern de relief. Somme de sinus à 3 fréquences basses
+// pour produire des ondulations larges (pas de pics aigus). Rangé dans
+// [-0.97, 0.97]. Les consommateurs scalent par leur propre amplitude.
 export function reliefNoise(x: number, z: number): number {
   return (
-    Math.sin(x * 0.55 + z * 0.4) * 0.55 +
-    Math.sin(x * 1.7 - z * 1.1) * 0.28 +
-    Math.sin(x * 3.1 + z * 2.6) * 0.14
+    Math.sin(x * 0.18 + z * 0.13) * 0.55 +
+    Math.sin(x * 0.42 - z * 0.31) * 0.28 +
+    Math.sin(x * 0.78 + z * 0.62) * 0.14
   );
 }

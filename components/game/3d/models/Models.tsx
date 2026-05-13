@@ -37,10 +37,18 @@ const PATHS = {
   hillSingleB: "/models/kaykit/nature/hill_single_B.gltf",
   hillSingleC: "/models/kaykit/nature/hill_single_C.gltf",
 
-  // Montagnes (footprint hex mais utilisables seules, posées sur le sol au loin)
+  // Montagnes (footprint hex, posées sur le sol périphérique). Variantes
+  // « _grass_trees » = montagne avec versants boisés ; « _grass » = montagne
+  // partiellement enherbée ; pas de suffixe = montagne pure rocher.
+  mountainA: "/models/kaykit/nature/mountain_A.gltf",
   mountainAGrass: "/models/kaykit/nature/mountain_A_grass.gltf",
+  mountainAGrassTrees: "/models/kaykit/nature/mountain_A_grass_trees.gltf",
   mountainB: "/models/kaykit/nature/mountain_B.gltf",
+  mountainBGrass: "/models/kaykit/nature/mountain_B_grass.gltf",
+  mountainBGrassTrees: "/models/kaykit/nature/mountain_B_grass_trees.gltf",
   mountainC: "/models/kaykit/nature/mountain_C.gltf",
+  mountainCGrass: "/models/kaykit/nature/mountain_C_grass.gltf",
+  mountainCGrassTrees: "/models/kaykit/nature/mountain_C_grass_trees.gltf",
 } as const;
 
 Object.values(PATHS).forEach((p) => useGLTF.preload(p));
@@ -70,10 +78,19 @@ export function HexGrassTile() {
   return <KayKit path={PATHS.hexGrass} />;
 }
 
-// Tuile d'eau : modèle KayKit avec surface bleue légèrement enfoncée
-// (Y range [-1, -0.2] avant scale, soit ~17 cm sous le niveau du grass top).
+// Tuile d'eau : le modèle KayKit a son top à Y=-0.2 (avant scale), soit
+// -0.173 après scale 0.866 → la surface se retrouve sous le ground plane
+// (Y=-0.05) et la tuile est invisible. On la remonte de 0.173 pour que la
+// surface d'eau coïncide avec le top des tuiles grass (Y=0 dans le repère
+// du group HexTile).
+const HEX_WATER_RAISE = 0.173;
+
 export function HexWaterTile() {
-  return <KayKit path={PATHS.hexWater} />;
+  return (
+    <group position={[0, HEX_WATER_RAISE, 0]}>
+      <KayKit path={PATHS.hexWater} />
+    </group>
+  );
 }
 
 // --- Décors de biome (posés SUR la tuile hex_grass). ---
@@ -136,9 +153,15 @@ export function StandaloneHill({ seed }: { seed: number }) {
 }
 
 const MOUNTAIN_PATHS = [
+  PATHS.mountainA,
   PATHS.mountainAGrass,
+  PATHS.mountainAGrassTrees,
   PATHS.mountainB,
+  PATHS.mountainBGrass,
+  PATHS.mountainBGrassTrees,
   PATHS.mountainC,
+  PATHS.mountainCGrass,
+  PATHS.mountainCGrassTrees,
 ] as const;
 
 export function StandaloneMountain({ seed }: { seed: number }) {

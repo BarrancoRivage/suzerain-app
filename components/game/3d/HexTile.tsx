@@ -15,10 +15,11 @@ import {
   MineModel,
 } from "./models/Models";
 
-// Amplitude verticale appliquée aux tuiles jouables. Faible (≤ 12 cm) pour
-// que les voisines restent lisibles ; le sol périphérique va beaucoup plus
-// haut (60 cm) en empruntant la même fonction `reliefNoise`.
-const TILE_RELIEF_AMPLITUDE = 0.12;
+// Tuiles jouables : on reste TOUJOURS au-dessus du sol périphérique (jamais
+// de tuile enterrée). baseline = (reliefNoise + 1) * 0.06, soit ~0 à ~12 cm
+// au-dessus du grass-top de référence. Le sol périphérique va beaucoup plus
+// haut (40 cm) en empruntant la même fonction `reliefNoise`.
+const TILE_RELIEF_AMPLITUDE = 0.06;
 
 type Props = {
   tile: Tile;
@@ -30,7 +31,12 @@ export function HexTile({ tile, clickable, onClick }: Props) {
   const [hovered, setHovered] = useState(false);
   const groupRef = useRef<Group>(null);
   const [x, z] = axialToWorld(tile.q, tile.r);
-  const baselineY = reliefNoise(x, z) * TILE_RELIEF_AMPLITUDE;
+  // reliefNoise est dans [-0.97, 0.97]. On le décale et on prend max(0, …)
+  // pour ne descendre jamais sous Y=0 (= jamais enterrée par le ground plane).
+  const baselineY = Math.max(
+    0,
+    (reliefNoise(x, z) + 1) * TILE_RELIEF_AMPLITUDE,
+  );
 
   // La tuile a une Y de base déterministe (relief partagé avec le sol),
   // sur laquelle se superpose le hover lift quand elle est clickable.
