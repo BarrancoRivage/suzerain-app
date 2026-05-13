@@ -8,7 +8,8 @@
 // ±Z, arêtes plates sur ±X). On utilise le layout axial pointy-top assorti.
 
 export const HEX_SIZE = 1;
-export const HEX_HEIGHT = 0.25;
+// Tuile en mode overlay (à la Civ VI) : très fine, à peine décollée du sol.
+export const HEX_THICKNESS = 0.04;
 const SQRT3 = Math.sqrt(3);
 
 export function axialToWorld(q: number, r: number): [number, number] {
@@ -16,3 +17,15 @@ export function axialToWorld(q: number, r: number): [number, number] {
   const z = HEX_SIZE * (3 / 2) * r;
   return [x, z];
 }
+
+// Sommets d'un hexagone pointy-top centré à l'origine, dans l'ordre du contour.
+// Utilisable pour un LineLoop ou un rendu de bordure.
+export const HEX_OUTLINE_POINTS: readonly [number, number, number][] = (() => {
+  const pts: [number, number, number][] = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (i * Math.PI) / 3;
+    pts.push([HEX_SIZE * Math.sin(angle), 0, HEX_SIZE * Math.cos(angle)]);
+  }
+  pts.push(pts[0]);
+  return pts;
+})();

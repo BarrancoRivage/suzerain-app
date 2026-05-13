@@ -1,21 +1,24 @@
 "use client";
 
 import { useMemo } from "react";
+import { IcosahedronGeometry, PlaneGeometry } from "three";
 
-import { HEX_HEIGHT } from "./hexMath";
+import { HEX_THICKNESS } from "./hexMath";
 
 // Sol continu sous la scène + décor posé en anneau autour du disque jouable.
 // Aucun hexagone hors zone interactive — l'œil identifie immédiatement la
-// frontière entre carte de jeu (tuiles hex surélevées) et toile de fond.
+// frontière entre carte de jeu (tuiles hex overlay) et toile de fond.
 
-const GROUND_RADIUS = 22;
-const GROUND_COLOR = "#7E9560";
-const GROUND_Y = -HEX_HEIGHT / 2 - 0.005;
+const GROUND_SIZE = 48;
+const GROUND_SEGMENTS = 96;
+const GROUND_COLOR_NEAR = "#7E9560";
+const GROUND_Y = -HEX_THICKNESS / 2 - 0.005;
 
 // Anneau de placement du décor. Le disque jouable (rayon axial 3) atteint
-// distance world ~6.1, on commence à 6.7 pour éviter de mordre dessus.
-const DECOR_INNER = 6.7;
-const DECOR_OUTER = 14;
+// distance world ~6.1, on commence à 7.0 pour éviter de mordre dessus.
+const DECOR_INNER = 7.0;
+const DECOR_OUTER = 17;
+const PLAYABLE_FLAT_RADIUS = 6.5;
 
 type DecorKind = "mountain" | "forest_cluster" | "rock_cluster" | "hill";
 
@@ -30,15 +33,21 @@ type DecorItem = {
 
 export function Landscape() {
   const decor = useMemo(buildDecor, []);
+  const groundGeometry = useMemo(buildGroundGeometry, []);
+
   return (
     <>
       <mesh
+        geometry={groundGeometry}
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, GROUND_Y, 0]}
         receiveShadow
       >
-        <circleGeometry args={[GROUND_RADIUS, 96]} />
-        <meshStandardMaterial color={GROUND_COLOR} roughness={1} />
+        <meshStandardMaterial
+          color={GROUND_COLOR_NEAR}
+          roughness={1}
+          flatShading
+        />
       </mesh>
 
       {decor.map((item, i) => (
@@ -46,6 +55,41 @@ export function Landscape() {
       ))}
     </>
   );
+}
+
+// Sol : PlaneGeometry subdivisée, déplacement procédural via sommes de sinus.
+// Plat dans la zone jouable (radius 6.5), pente progressive ensuite. Variation
+// d'amplitude par bandes pour suggérer collines proches et reliefs lointains.
+function buildGroundGeometry() {
+  const geo = new PlaneGeometry(
+    GROUND_SIZE,
+    GROUND_SIZE,
+    GROUND_SEGMENTS,
+    GROUND_SEGMENTS,
+  );
+  const positions = geo.attributes.position;
+  for (let i = 0; i < positions.count; i++) {
+    const x = positions.getX(i);
+    const y = positions.getY(i);
+    const dist = Math.sqrt(x * x + y * y);
+    if (dist < PLAYABLE_FLAT_RADIUS) {
+      continue;
+    }
+    // Easing entre flat (0) et displacement plein (1).
+    const t = Math.min(1, (dist - PLAYABLE_FLAT_RADIUS) / 4);
+    const ease = t * t * (3 - 2 * t);
+
+    const n =
+      Math.sin(x * 0.55 + y * 0.4) * 0.55 +
+      Math.sin(x * 1.7 - y * 1.1) * 0.28 +
+      Math.sin(x * 3.1 + y * 2.6) * 0.14;
+    // Le sol est tourné -π/2 autour de X — le Z local (axe normal) devient Y dans
+    // le monde. PlaneGeometry stocke ses sommets en (x, y, z=0), on déplace Z.
+    positions.setZ(i, n * 0.45 * ease);
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
 }
 
 function DecorObject({ item }: { item: DecorItem }) {
@@ -69,35 +113,34 @@ function DecorMesh({ kind, seed }: { kind: DecorKind; seed: number }) {
 
 // --- Décors ---
 
-function Mountain({
+// Pic individuel : tronc en cône pierreux + calotte de neige centrée sur l'apex.
+function Peak({
   x = 0,
   z = 0,
   height,
   radius,
-  snowRatio = 0.42,
+  snowRatio = 0.4,
+  segments = 7,
 }: {
   x?: number;
   z?: number;
   height: number;
   radius: number;
   snowRatio?: number;
+  segments?: number;
 }) {
-  // Le cap de neige est un cône plus petit dont l'apex coïncide pile avec
-  // celui de la montagne. Son rayon de base reprend la section du cône à
-  // cette hauteur (snowRatio * radius), avec un léger débord pour le rendre
-  // visible comme « calotte ».
   const snowH = height * snowRatio;
-  const snowR = radius * snowRatio + 0.03;
+  const snowR = radius * snowRatio + 0.05;
   const snowCenterY = height - snowH / 2;
   return (
     <group position={[x, 0, z]}>
       <mesh position={[0, height / 2, 0]} castShadow receiveShadow>
-        <coneGeometry args={[radius, height, 6]} />
-        <meshStandardMaterial color="#6E6354" roughness={1} flatShading />
+        <coneGeometry args={[radius, height, segments]} />
+        <meshStandardMaterial color="#5F574A" roughness={1} flatShading />
       </mesh>
       <mesh position={[0, snowCenterY, 0]} castShadow>
-        <coneGeometry args={[snowR, snowH, 6]} />
-        <meshStandardMaterial color="#EFE4C9" roughness={0.8} flatShading />
+        <coneGeometry args={[snowR, snowH, segments]} />
+        <meshStandardMaterial color="#EFE4C9" roughness={0.75} flatShading />
       </mesh>
     </group>
   );
@@ -105,55 +148,82 @@ function Mountain({
 
 function MountainCluster({ seed }: { seed: number }) {
   const rng = mulberry32(seed);
-  const mainH = 1.6 + rng() * 0.9;
-  const mainR = 0.7 + rng() * 0.3;
-  const hasSecondary = rng() < 0.55;
-  const sndOffsetAngle = rng() * Math.PI * 2;
-  const sndDist = 0.55 + rng() * 0.25;
-  const sndH = mainH * (0.55 + rng() * 0.2);
-  const sndR = mainR * (0.55 + rng() * 0.2);
+  const mainH = 1.8 + rng() * 1.2;
+  const mainR = 0.85 + rng() * 0.4;
+  const secondaryCount = rng() < 0.7 ? (rng() < 0.5 ? 1 : 2) : 0;
+  const secondaries = Array.from({ length: secondaryCount }, () => {
+    const angle = rng() * Math.PI * 2;
+    const dist = 0.7 + rng() * 0.4;
+    return {
+      x: Math.cos(angle) * dist,
+      z: Math.sin(angle) * dist,
+      h: mainH * (0.5 + rng() * 0.25),
+      r: mainR * (0.55 + rng() * 0.2),
+    };
+  });
   return (
     <>
-      <Mountain height={mainH} radius={mainR} />
-      {hasSecondary ? (
-        <Mountain
-          x={Math.cos(sndOffsetAngle) * sndDist}
-          z={Math.sin(sndOffsetAngle) * sndDist}
-          height={sndH}
-          radius={sndR}
-        />
-      ) : null}
+      <Peak height={mainH} radius={mainR} />
+      {secondaries.map((s, i) => (
+        <Peak key={i} x={s.x} z={s.z} height={s.h} radius={s.r} />
+      ))}
     </>
   );
 }
 
 function ForestCluster({ seed }: { seed: number }) {
   const rng = mulberry32(seed);
-  const count = 4 + Math.floor(rng() * 4);
-  const trees = Array.from({ length: count }, () => ({
-    x: (rng() - 0.5) * 1.6,
-    z: (rng() - 0.5) * 1.6,
-    s: 0.85 + rng() * 0.4,
+  const count = 5 + Math.floor(rng() * 4);
+  const trees = Array.from({ length: count }, (_, i) => ({
+    x: (rng() - 0.5) * 1.8,
+    z: (rng() - 0.5) * 1.8,
+    s: 0.95 + rng() * 0.45,
+    seed: (seed ^ (i * 0x9e37)) >>> 0,
   }));
   return (
     <>
       {trees.map((t, i) => (
-        <Tree key={i} x={t.x} z={t.z} scale={t.s} />
+        <BigTree key={i} x={t.x} z={t.z} scale={t.s} seed={t.seed} />
       ))}
     </>
   );
 }
 
-function Tree({ x, z, scale }: { x: number; z: number; scale: number }) {
+function BigTree({
+  x,
+  z,
+  scale,
+  seed,
+}: {
+  x: number;
+  z: number;
+  scale: number;
+  seed: number;
+}) {
+  const rng = mulberry32(seed);
+  const trunkH = 0.4 + rng() * 0.15;
+  const palette = [
+    ["#1F3D21", "#2F5232", "#406841"],
+    ["#234027", "#345A38", "#467548"],
+    ["#1B3320", "#2A4828", "#3F6438"],
+  ][Math.floor(rng() * 3)];
   return (
-    <group position={[x, 0, z]} scale={scale}>
-      <mesh position={[0, 0.18, 0]} castShadow>
-        <cylinderGeometry args={[0.06, 0.09, 0.32, 6]} />
-        <meshStandardMaterial color="#3F2D1F" roughness={0.95} />
+    <group position={[x, 0, z]} scale={scale} rotation={[0, rng() * Math.PI, 0]}>
+      <mesh position={[0, trunkH / 2, 0]} castShadow>
+        <cylinderGeometry args={[0.07, 0.1, trunkH, 7]} />
+        <meshStandardMaterial color="#332218" roughness={0.95} />
       </mesh>
-      <mesh position={[0, 0.58, 0]} castShadow>
-        <coneGeometry args={[0.26, 0.65, 8]} />
-        <meshStandardMaterial color="#2F4A2F" roughness={0.85} flatShading />
+      <mesh position={[0, trunkH + 0.22, 0]} castShadow>
+        <coneGeometry args={[0.34, 0.55, 9]} />
+        <meshStandardMaterial color={palette[0]} roughness={0.85} flatShading />
+      </mesh>
+      <mesh position={[0, trunkH + 0.5, 0]} castShadow>
+        <coneGeometry args={[0.26, 0.5, 9]} />
+        <meshStandardMaterial color={palette[1]} roughness={0.85} flatShading />
+      </mesh>
+      <mesh position={[0, trunkH + 0.75, 0]} castShadow>
+        <coneGeometry args={[0.16, 0.4, 9]} />
+        <meshStandardMaterial color={palette[2]} roughness={0.85} flatShading />
       </mesh>
     </group>
   );
@@ -162,39 +232,75 @@ function Tree({ x, z, scale }: { x: number; z: number; scale: number }) {
 function RockCluster({ seed }: { seed: number }) {
   const rng = mulberry32(seed);
   const count = 2 + Math.floor(rng() * 3);
-  const rocks = Array.from({ length: count }, () => ({
-    x: (rng() - 0.5) * 1.0,
-    z: (rng() - 0.5) * 1.0,
-    s: 0.4 + rng() * 0.35,
+  const rocks = Array.from({ length: count }, (_, i) => ({
+    x: (rng() - 0.5) * 1.1,
+    z: (rng() - 0.5) * 1.1,
+    s: 0.55 + rng() * 0.4,
+    seed: (seed ^ (i * 0x85eb)) >>> 0,
     rot: rng() * Math.PI * 2,
-    tilt: (rng() - 0.5) * 0.3,
   }));
   return (
     <>
       {rocks.map((r, i) => (
-        <mesh
-          key={i}
-          position={[r.x, r.s * 0.4, r.z]}
-          scale={r.s}
-          rotation={[r.tilt, r.rot, r.tilt]}
-          castShadow
-        >
-          <dodecahedronGeometry args={[0.5, 0]} />
-          <meshStandardMaterial color="#7E7263" roughness={1} flatShading />
-        </mesh>
+        <BigRock key={i} x={r.x} z={r.z} scale={r.s} seed={r.seed} rot={r.rot} />
       ))}
     </>
   );
 }
 
+function BigRock({
+  x,
+  z,
+  scale,
+  seed,
+  rot,
+}: {
+  x: number;
+  z: number;
+  scale: number;
+  seed: number;
+  rot: number;
+}) {
+  const geometry = useMemo(() => {
+    const geo = new IcosahedronGeometry(0.42, 1);
+    const positions = geo.attributes.position;
+    const rng = mulberry32(seed);
+    for (let i = 0; i < positions.count; i++) {
+      positions.setX(i, positions.getX(i) + (rng() - 0.5) * 0.15);
+      positions.setY(i, positions.getY(i) + (rng() - 0.5) * 0.18);
+      positions.setZ(i, positions.getZ(i) + (rng() - 0.5) * 0.15);
+    }
+    positions.needsUpdate = true;
+    geo.computeVertexNormals();
+    return geo;
+  }, [seed]);
+  return (
+    <mesh
+      position={[x, 0.3 * scale, z]}
+      scale={scale}
+      rotation={[0, rot, 0]}
+      castShadow
+      receiveShadow
+      geometry={geometry}
+    >
+      <meshStandardMaterial color="#736657" roughness={1} flatShading />
+    </mesh>
+  );
+}
+
 function Hill({ seed }: { seed: number }) {
   const rng = mulberry32(seed);
-  const h = 0.35 + rng() * 0.25;
-  const r = 0.9 + rng() * 0.35;
+  const h = 0.45 + rng() * 0.3;
+  const r = 1.1 + rng() * 0.4;
   return (
-    <mesh position={[0, h * 0.35, 0]} scale={[r, h, r]} castShadow receiveShadow>
-      <sphereGeometry args={[1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
-      <meshStandardMaterial color="#A89368" roughness={1} flatShading />
+    <mesh
+      position={[0, h * 0.35, 0]}
+      scale={[r, h, r]}
+      castShadow
+      receiveShadow
+    >
+      <sphereGeometry args={[1, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+      <meshStandardMaterial color="#728F4D" roughness={1} flatShading />
     </mesh>
   );
 }
@@ -202,32 +308,28 @@ function Hill({ seed }: { seed: number }) {
 // --- Distribution ---
 
 const KIND_DISTRIBUTION_NEAR: ReadonlyArray<readonly [DecorKind, number]> = [
-  ["forest_cluster", 0.45],
+  ["forest_cluster", 0.5],
   ["hill", 0.3],
-  ["rock_cluster", 0.15],
-  ["mountain", 0.1],
+  ["rock_cluster", 0.12],
+  ["mountain", 0.08],
 ];
 
 const KIND_DISTRIBUTION_FAR: ReadonlyArray<readonly [DecorKind, number]> = [
-  ["mountain", 0.55],
-  ["rock_cluster", 0.2],
+  ["mountain", 0.6],
+  ["rock_cluster", 0.18],
   ["forest_cluster", 0.15],
-  ["hill", 0.1],
+  ["hill", 0.07],
 ];
 
 function buildDecor(): DecorItem[] {
-  // Échantillonnage type Poisson-disc grossier : on tire 200 candidats,
-  // on garde ceux qui sont assez éloignés des précédents. Déterministe via
-  // une seed fixe pour que la map du monde reste cohérente d'une session
-  // à l'autre.
   const rng = mulberry32(0xc0ffee);
   const items: DecorItem[] = [];
-  const minSpacing = 1.9;
-  const attempts = 220;
+  const minSpacing = 2.1;
+  const attempts = 260;
 
   for (let i = 0; i < attempts; i++) {
     const angle = rng() * Math.PI * 2;
-    const t = Math.sqrt(rng()); // uniforme par aire entre les rayons
+    const t = Math.sqrt(rng());
     const dist = DECOR_INNER + t * (DECOR_OUTER - DECOR_INNER);
     const x = Math.cos(angle) * dist;
     const z = Math.sin(angle) * dist;
@@ -237,7 +339,7 @@ function buildDecor(): DecorItem[] {
     }
 
     const normalized = (dist - DECOR_INNER) / (DECOR_OUTER - DECOR_INNER);
-    const table = normalized < 0.5 ? KIND_DISTRIBUTION_NEAR : KIND_DISTRIBUTION_FAR;
+    const table = normalized < 0.4 ? KIND_DISTRIBUTION_NEAR : KIND_DISTRIBUTION_FAR;
     const kind = pickKind(table, rng);
 
     items.push({
@@ -245,7 +347,7 @@ function buildDecor(): DecorItem[] {
       x,
       z,
       rotation: rng() * Math.PI * 2,
-      scale: 0.85 + rng() * 0.35,
+      scale: 0.9 + rng() * 0.4,
       seed: ((i + 1) * 0x9e3779b1) >>> 0,
     });
   }

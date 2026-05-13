@@ -2,20 +2,32 @@
 
 import { useRef, useState } from "react";
 import type { Mesh } from "three";
+import { Line } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 
 import type { Biome, Tile } from "@/lib/game/types";
-import { HEX_HEIGHT, HEX_SIZE, axialToWorld } from "./hexMath";
+import {
+  HEX_OUTLINE_POINTS,
+  HEX_SIZE,
+  HEX_THICKNESS,
+  axialToWorld,
+} from "./hexMath";
 import { BiomeDecor } from "./BiomeDecor";
 import { BuildingMesh } from "./BuildingMesh";
 
+// Couleurs de biome calées sur la palette parchemin du HUD : prairie tirant
+// vers le moss, forêt dense, colline rocailleuse beige. Le rendu est très
+// désaturé volontairement pour ne pas écraser la toile de fond.
 const BIOME_COLORS: Readonly<Record<Biome, string>> = {
-  plain: "#C9B07A",
-  forest: "#4F6F4A",
-  hill: "#9C8769",
+  plain: "#A6BD68",
+  forest: "#3F6B3E",
+  hill: "#A89368",
 };
 
-const HOVER_COLOR = "#E9C76A";
+const HOVER_COLOR = "#EFC75A";
+const OUTLINE_COLOR = "#1F1A14";
+
+const TILE_REST_Y = HEX_THICKNESS / 2 + 0.002;
 
 type Props = {
   tile: Tile;
@@ -29,11 +41,12 @@ export function HexTile({ tile, clickable, onClick }: Props) {
   const [x, z] = axialToWorld(tile.q, tile.r);
   const seed = hashCoord(tile.q, tile.r);
 
-  // Lift-on-hover : 8 px of perceived bump quand clickable.
+  // Affordance hover : la tuile entière monte légèrement (~3 cm).
   useFrame((_, delta) => {
     if (!groupRef.current) return;
-    const target = clickable && hovered ? 0.08 : 0;
-    groupRef.current.position.y += (target - groupRef.current.position.y) * Math.min(1, delta * 12);
+    const target = clickable && hovered ? 0.06 : 0;
+    const lerp = Math.min(1, delta * 12);
+    groupRef.current.position.y += (target - groupRef.current.position.y) * lerp;
   });
 
   const baseColor = BIOME_COLORS[tile.biome];
@@ -42,7 +55,7 @@ export function HexTile({ tile, clickable, onClick }: Props) {
   return (
     <group ref={groupRef} position={[x, 0, z]}>
       <mesh
-        castShadow
+        position={[0, TILE_REST_Y, 0]}
         receiveShadow
         onPointerOver={(e) => {
           e.stopPropagation();
@@ -60,16 +73,25 @@ export function HexTile({ tile, clickable, onClick }: Props) {
           onClick();
         }}
       >
-        <cylinderGeometry args={[HEX_SIZE, HEX_SIZE, HEX_HEIGHT, 6]} />
+        <cylinderGeometry args={[HEX_SIZE, HEX_SIZE, HEX_THICKNESS, 6]} />
         <meshStandardMaterial
           color={fillColor}
           roughness={0.95}
           emissive={clickable && hovered ? HOVER_COLOR : "#000000"}
-          emissiveIntensity={clickable && hovered ? 0.15 : 0}
+          emissiveIntensity={clickable && hovered ? 0.18 : 0}
         />
       </mesh>
 
-      <group position={[0, HEX_HEIGHT / 2, 0]}>
+      <Line
+        points={HEX_OUTLINE_POINTS as unknown as [number, number, number][]}
+        color={OUTLINE_COLOR}
+        lineWidth={1.1}
+        transparent
+        opacity={clickable && hovered ? 0.7 : 0.32}
+        position={[0, TILE_REST_Y + HEX_THICKNESS / 2 + 0.001, 0]}
+      />
+
+      <group position={[0, TILE_REST_Y + HEX_THICKNESS / 2, 0]}>
         {tile.building ? (
           <BuildingMesh kind={tile.building.kind} />
         ) : (

@@ -16,9 +16,12 @@ export function HexBoard({ state, clickableTileKey, onTileClick }: Props) {
     <div className="absolute inset-0">
       <Canvas
         shadows
+        // `flat` désactive le tone mapping du renderer — c'est l'EffectComposer
+        // qui s'en charge via la passe ToneMapping ACES_FILMIC.
+        flat
         dpr={[1, 2]}
-        camera={{ position: [0, 12, 15], fov: 38, near: 0.1, far: 80 }}
-        gl={{ antialias: true }}
+        camera={{ position: [0, 13, 16], fov: 38, near: 0.1, far: 100 }}
+        gl={{ antialias: false, powerPreference: "high-performance" }}
       >
         <Scene
           state={state}
