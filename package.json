@@ -1,6 +1,6 @@
 {
   "name": "suzerain-game",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.46.1",
     "next": "15.1.11",
     "react": "19.0.0",
     "react-dom": "19.0.0"

@@ -2,7 +2,7 @@
 
 Jeu web multijoueur asynchrone de stratégie médiévale (4X de gestion seigneuriale, parties de 4-6 semaines, 4-8 joueurs). Pixel art, parchemin, temps réel lent.
 
-Ce dépôt est à la version **v0.0.1** — Hello World déployé sur Vercel. Aucune logique de jeu pour l'instant : juste les fondations techniques et l'identité visuelle.
+Ce dépôt est à la version **v0.2** — fondations du moteur de jeu en solo : grille 6×6, pose d'une Ferme, production de grain en temps réel persistée sur Supabase (Postgres via Vercel Marketplace).
 
 ---
 
@@ -12,12 +12,39 @@ Prérequis : Node.js 20+ (Node 24 LTS recommandé, identique à Vercel) et [pnpm
 
 ```bash
 pnpm install
+# Synchroniser les secrets Supabase depuis Vercel (une seule fois)
+pnpm dlx vercel link
+pnpm dlx vercel env pull .env.local
 pnpm dev
 ```
 
-Ouvre [http://localhost:3000](http://localhost:3000).
+Ouvre [http://localhost:3000](http://localhost:3000) (landing) puis [/play](http://localhost:3000/play) (le fief).
 
-Endpoint santé : [http://localhost:3000/api/health](http://localhost:3000/api/health) → `{ "status": "ok", "version": "0.0.1" }`.
+Endpoint santé : [http://localhost:3000/api/health](http://localhost:3000/api/health) → `{ "status": "ok", "version": "0.2.0" }`.
+
+### Pré-requis Vercel + Supabase (une fois)
+
+L'écran `/play` lit/écrit son état dans Postgres via Supabase :
+
+1. vercel.com → projet `suzerain-app` → **Storage** → **Browse Marketplace** → choisir **Supabase** (free tier suffit) → **Create**.
+2. Lier au projet : Vercel provisionne `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (et leurs jumeaux `NEXT_PUBLIC_*`) dans Development, Preview et Production.
+3. Dans le dashboard Supabase → **SQL Editor** → **New query** → coller et exécuter :
+
+   ```sql
+   create table public.game_states (
+     player_id   uuid        primary key,
+     state       jsonb       not null,
+     updated_at  timestamptz not null default now()
+   );
+
+   -- RLS activée sans policy : seul le service role (utilisé par les Server Actions) peut lire/écrire.
+   -- À l'arrivée de l'auth (v0.3), on ajoutera une policy `auth.uid() = player_id`.
+   alter table public.game_states enable row level security;
+   ```
+
+4. En local : `pnpm dlx vercel env pull .env.local` pour synchroniser les variables. Redémarrer `pnpm dev`.
+
+> ⚠️ `SUPABASE_SERVICE_ROLE_KEY` est un secret serveur — ne l'expose jamais côté client (pas de préfixe `NEXT_PUBLIC_`, accédée uniquement dans `lib/supabase.ts` qui est consommée par les Server Actions).
 
 Autres scripts utiles :
 
@@ -61,15 +88,29 @@ Le déploiement se fait automatiquement à chaque push sur `main`. Les autres br
 suzerain-game/
 ├── app/
 │   ├── layout.tsx          # Root layout : fonts (Cormorant Garamond + Inter), metadata SEO
-│   ├── page.tsx            # Écran d'accueil Hello World
+│   ├── page.tsx            # Écran d'accueil + CTA "Entrer dans le royaume"
 │   ├── globals.css         # Tailwind base + utilitaires perso (.pixelated)
+│   ├── play/
+│   │   ├── page.tsx        # Vue du fief
+│   │   └── actions.ts      # Server Actions : loadGame, placeBuilding
 │   └── api/
 │       └── health/route.ts # GET /api/health → { status, version }
 ├── components/
-│   └── CrownIcon.tsx       # SVG pixel art (couronne dorée) en composant React
+│   ├── CrownIcon.tsx       # SVG pixel art (couronne) — landing
+│   └── game/
+│       ├── Board.tsx       # Orchestrateur client : état, transitions, RAF
+│       ├── Tile.tsx        # Une tuile cliquable de la grille
+│       ├── ResourcePanel.tsx  # Compteur de grain animé (RAF)
+│       ├── BuildPanel.tsx     # Sélecteur de bâtiment
+│       └── icons/             # FarmIcon, GrainIcon (pixel art)
 ├── lib/
-│   ├── db.ts               # Placeholder pour la couche base de données (v0.1)
-│   └── auth.ts             # Placeholder pour la couche authentification (v0.1)
+│   ├── game/
+│   │   ├── types.ts        # GameState, Tile, Building, GameError
+│   │   ├── buildings.ts    # Config statique des bâtiments
+│   │   └── engine.ts       # Fonctions pures : tick, placeBuilding
+│   ├── supabase.ts         # Client Supabase server-only (loadState / saveState)
+│   ├── session.ts          # Cookie playerId anonyme (en attendant l'auth)
+│   └── auth.ts             # Placeholder pour l'auth Supabase (v0.3)
 ├── public/
 │   └── favicon.svg         # Couronne pixel art en favicon
 ├── tailwind.config.ts      # Palette parchment/ink/blood/moss/gold + fonts
@@ -116,12 +157,12 @@ Typo : **Cormorant Garamond** (titres, serif) + **Inter** (corps, sans). Chargé
 
 ## Roadmap technique
 
-1. **v0.0.1** *(cette étape)* — Hello World déployé sur Vercel.
-2. **v0.1** — Auth magic link + base de données + modèles `Joueur` et `Fief`.
-3. **v0.2** — Écran du fief, production de ressources en temps réel lent.
-4. **v0.3** — Carte commune avec territoires neutres capturables.
-5. **v0.4** — Combat basique et déplacement d'armées.
-6. **v0.5** — Marché et interactions inter-joueurs.
+1. **v0.0.1** ✅ — Hello World déployé sur Vercel.
+2. **v0.2** *(itération en cours)* — Écran du fief en solo, pose de bâtiments, production de ressources en temps réel, persistance Upstash Redis.
+3. **v0.3** — Auth magic link + migration de l'état serveur sur de vraies identités joueur.
+4. **v0.4** — Carte commune avec territoires neutres capturables.
+5. **v0.5** — Combat basique et déplacement d'armées.
+6. **v0.6** — Marché et interactions inter-joueurs.
 7. **v1.0** — Première saison jouable complète.
 
 ---
