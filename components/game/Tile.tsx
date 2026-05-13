@@ -1,7 +1,16 @@
 "use client";
 
-import type { Tile } from "@/lib/game/types";
+import type { BuildingKind, Tile } from "@/lib/game/types";
 import { FarmIcon } from "./icons/FarmIcon";
+import { MineIcon } from "./icons/MineIcon";
+
+const BUILDING_VISUALS: Record<
+  BuildingKind,
+  { Icon: typeof FarmIcon; colorClass: string }
+> = {
+  farm: { Icon: FarmIcon, colorClass: "text-blood" },
+  mine: { Icon: MineIcon, colorClass: "text-gold" },
+};
 
 type Props = {
   tile: Tile;
@@ -17,6 +26,10 @@ export function TileCell({ tile, clickable, onClick }: Props) {
       ? "bg-parchment/60 border-gold/50 ring-1 ring-gold/20 cursor-pointer hover:bg-parchment hover:border-gold"
       : "bg-parchment/40 border-ink/10 cursor-default";
 
+  const visual = tile.building
+    ? BUILDING_VISUALS[tile.building.kind]
+    : null;
+
   return (
     <button
       type="button"
@@ -29,8 +42,8 @@ export function TileCell({ tile, clickable, onClick }: Props) {
           : `Tuile ${tile.x},${tile.y} — vide`
       }
     >
-      {tile.building?.kind === "farm" ? (
-        <FarmIcon className="absolute inset-1.5 text-blood pixelated" />
+      {visual ? (
+        <visual.Icon className={`absolute inset-1.5 ${visual.colorClass} pixelated`} />
       ) : null}
     </button>
   );

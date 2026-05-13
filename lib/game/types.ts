@@ -1,9 +1,9 @@
 export const GRID_SIZE = 6;
-export const STATE_VERSION = 1;
+export const STATE_VERSION = 2;
 
-export type ResourceKind = "grain";
+export type ResourceKind = "grain" | "gold";
 
-export type BuildingKind = "farm";
+export type BuildingKind = "farm" | "mine";
 
 export type Building = {
   kind: BuildingKind;
