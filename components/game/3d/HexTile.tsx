@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { Group } from "three";
 import { useFrame } from "@react-three/fiber";
 
+import { hashCoord } from "@/lib/game/rng";
 import type { Tile } from "@/lib/game/types";
 import { axialToWorld, reliefNoise } from "./hexMath";
 import {
@@ -86,9 +87,13 @@ export function HexTile({ tile, clickable, onClick }: Props) {
 // La tuile : rivière > eau > route > grass. Forêt et colline sont des
 // décors empilés par-dessus le grass.
 function TileBase({ tile }: { tile: Tile }) {
-  if (tile.path?.type === "river") return <HexRiverTile axis={tile.path.axis} />;
+  if (tile.path?.type === "river") {
+    return <HexRiverTile inEdge={tile.path.inEdge} outEdge={tile.path.outEdge} />;
+  }
   if (tile.biome === "water") return <HexWaterTile />;
-  if (tile.path?.type === "road") return <HexRoadTile axis={tile.path.axis} />;
+  if (tile.path?.type === "road") {
+    return <HexRoadTile inEdge={tile.path.inEdge} outEdge={tile.path.outEdge} />;
+  }
   return <HexGrassTile />;
 }
 
@@ -125,10 +130,3 @@ function WaterTopDressing({ tile }: { tile: { q: number; r: number } }) {
   return null;
 }
 
-function hashCoord(q: number, r: number): number {
-  let h = 2166136261 ^ q;
-  h = Math.imul(h, 16777619);
-  h ^= r;
-  h = Math.imul(h, 16777619);
-  return h >>> 0;
-}

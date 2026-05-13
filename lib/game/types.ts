@@ -1,5 +1,5 @@
 export const GRID_RADIUS = 6;
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 6;
 
 export type ResourceKind = "grain" | "gold";
 
@@ -12,13 +12,14 @@ export type Building = {
   placedAt: number;
 };
 
-// Indice de l'axe hex sur lequel s'aligne un chemin (rivière, route).
-// 0 = axe q (E-O), 1 = axe r (NO-SE), 2 = axe q-r (NE-SO).
-export type PathAxis = 0 | 1 | 2;
-
+// Chemin (rivière ou route) traversant une tuile. inEdge et outEdge sont des
+// indices d'arête 0..5 (cf. HEX_DIRECTIONS dans lib/game/hex.ts). Quand
+// outEdge ≠ inEdge + 3 (mod 6), le chemin tourne — on utilise alors un tile
+// KayKit en variante courbe (B = 60°, C = 120°).
 export type TilePath = {
   type: "river" | "road";
-  axis: PathAxis;
+  inEdge: number;
+  outEdge: number;
 };
 
 export type Tile = {

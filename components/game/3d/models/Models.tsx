@@ -18,7 +18,11 @@ const PATHS = {
   hexGrassSlopedHigh: "/models/kaykit/tiles/hex_grass_sloped_high.gltf",
   hexWater: "/models/kaykit/tiles/hex_water.gltf",
   hexRiverA: "/models/kaykit/tiles/hex_river_A.gltf",
+  hexRiverB: "/models/kaykit/tiles/hex_river_B.gltf",
+  hexRiverC: "/models/kaykit/tiles/hex_river_C.gltf",
   hexRoadA: "/models/kaykit/tiles/hex_road_A.gltf",
+  hexRoadB: "/models/kaykit/tiles/hex_road_B.gltf",
+  hexRoadC: "/models/kaykit/tiles/hex_road_C.gltf",
 
   // Buildings (faction rouge — cohérent avec la palette `blood` Suzerain)
   homeA: "/models/kaykit/buildings_red/building_home_A_red.gltf",
@@ -106,25 +110,73 @@ export function HexWaterTile() {
   );
 }
 
-// Rotation par axe hex (pointy-top, axialToWorld convention). axe 0 = q
-// (E-O, angle 0°) ; axe 1 = r (NO-SE, +60°) ; axe 2 = q-r (NE-SO, -60°).
-// hex_river_A / hex_road_A sont supposés orientés par défaut le long de
-// l'axe 0 (la rivière/route traverse les arêtes E et O de la tuile). On
-// applique une rotation Y pour aligner sur les autres axes.
-const AXIS_ROTATION = [0, Math.PI / 3, -Math.PI / 3] as const;
+// Choix de la variante KayKit (A=droite, B=60°, C=120°) et de la rotation Y
+// selon les arêtes d'entrée/sortie du chemin. Convention :
+//   - HEX_DIRECTIONS[i] donne le vecteur axial vers le voisin par l'arête i,
+//     à l'angle world = i * 60° (CCW depuis +X)
+//   - Default A : in=3 out=0 → axis +X. Rotation `inEdge * 60°` aligne in→inEdge.
+//   - Default B (60° courbe CCW) : in=0 out=1. Rotation `inEdge * 60°`.
+//   - Default C (120° courbe CCW) : in=0 out=2. Rotation `inEdge * 60°`.
+//   - Pour une courbe CW (diff = -1 mod 6 = 5, ou -2 mod 6 = 4), on inverse
+//     in et out — la courbe est symétrique en termes de flux visuel.
+//
+// Si l'orientation par défaut de KayKit diffère (e.g. A naturel sur axis Z),
+// il suffira d'ajouter un offset constant par variante.
 
-export function HexRiverTile({ axis }: { axis: 0 | 1 | 2 }) {
+const HEX_60 = Math.PI / 3;
+
+type Variant = "A" | "B" | "C";
+
+function classifyPath(
+  inEdge: number,
+  outEdge: number,
+): { variant: Variant; rotation: number } {
+  const diff = ((outEdge - inEdge) % 6 + 6) % 6;
+  switch (diff) {
+    case 3:
+      return { variant: "A", rotation: inEdge * HEX_60 };
+    case 1:
+      return { variant: "B", rotation: inEdge * HEX_60 };
+    case 5: // courbe miroir : swap in/out
+      return { variant: "B", rotation: outEdge * HEX_60 };
+    case 2:
+      return { variant: "C", rotation: inEdge * HEX_60 };
+    case 4:
+      return { variant: "C", rotation: outEdge * HEX_60 };
+    default:
+      // diff = 0 ne devrait pas arriver (in === out) ; on retombe sur A.
+      return { variant: "A", rotation: 0 };
+  }
+}
+
+const RIVER_VARIANT_PATH: Record<Variant, string> = {
+  A: PATHS.hexRiverA,
+  B: PATHS.hexRiverB,
+  C: PATHS.hexRiverC,
+};
+
+const ROAD_VARIANT_PATH: Record<Variant, string> = {
+  A: PATHS.hexRoadA,
+  B: PATHS.hexRoadB,
+  C: PATHS.hexRoadC,
+};
+
+type PathProps = { inEdge: number; outEdge: number };
+
+export function HexRiverTile({ inEdge, outEdge }: PathProps) {
+  const { variant, rotation } = classifyPath(inEdge, outEdge);
   return (
-    <group rotation={[0, AXIS_ROTATION[axis], 0]}>
-      <KayKit path={PATHS.hexRiverA} />
+    <group rotation={[0, rotation, 0]}>
+      <KayKit path={RIVER_VARIANT_PATH[variant]} />
     </group>
   );
 }
 
-export function HexRoadTile({ axis }: { axis: 0 | 1 | 2 }) {
+export function HexRoadTile({ inEdge, outEdge }: PathProps) {
+  const { variant, rotation } = classifyPath(inEdge, outEdge);
   return (
-    <group rotation={[0, AXIS_ROTATION[axis], 0]}>
-      <KayKit path={PATHS.hexRoadA} />
+    <group rotation={[0, rotation, 0]}>
+      <KayKit path={ROAD_VARIANT_PATH[variant]} />
     </group>
   );
 }
