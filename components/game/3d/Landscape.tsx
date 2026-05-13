@@ -19,15 +19,17 @@ import {
 
 const TILE_BOTTOM_Y = -0.05;
 const GROUND_COLOR = "#7BA549";
-const GROUND_SIZE = 56;
-const GROUND_SEGMENTS = 96;
-const PLAYABLE_FLAT_RADIUS = 6.5;
-const RAMP_END = 8.0;
-const RELIEF_AMPLITUDE = 0.6;
+const GROUND_SIZE = 110;
+const GROUND_SEGMENTS = 160;
+// Disque jouable de rayon axial 6 → world distance max ≈ 10.4. On garde une
+// marge de 1.5 avant que le sol commence à monter.
+const PLAYABLE_FLAT_RADIUS = 12;
+const RAMP_END = 15.0;
+const RELIEF_AMPLITUDE = 1.0;
 
-const DECOR_INNER = 7.0;
-const DECOR_OUTER_NEAR = 11;
-const DECOR_OUTER_FAR = 18;
+const DECOR_INNER = 13.5;
+const DECOR_OUTER_NEAR = 22;
+const DECOR_OUTER_FAR = 38;
 
 type DecorKind = "tree" | "rock" | "hill" | "mountain";
 
@@ -136,24 +138,24 @@ function buildDecor(): DecorItem[] {
   const rng = mulberry32(0xc0ffee);
   const items: DecorItem[] = [];
 
-  for (let i = 0; i < 180; i++) {
+  for (let i = 0; i < 400; i++) {
     const item = sampleAnnulus(
       rng,
       DECOR_INNER,
       DECOR_OUTER_NEAR,
-      1.2,
+      1.5,
       KIND_NEAR,
       i,
       items,
     );
     if (item) items.push(item);
   }
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < 260; i++) {
     const item = sampleAnnulus(
       rng,
       DECOR_OUTER_NEAR,
       DECOR_OUTER_FAR,
-      2.4,
+      2.8,
       KIND_FAR,
       i + 1000,
       items,

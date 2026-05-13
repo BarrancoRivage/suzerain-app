@@ -11,12 +11,18 @@ import {
   type Tile,
 } from "./types";
 
-const BIOMES: readonly Biome[] = ["plain", "forest", "hill"];
-const BIOME_WEIGHTS: Readonly<Record<Biome, number>> = {
+const LAND_BIOMES: readonly Biome[] = ["plain", "forest", "hill"];
+const LAND_WEIGHTS: Readonly<Record<Exclude<Biome, "water">, number>> = {
   plain: 5,
   forest: 3,
   hill: 2,
 };
+
+const NUM_LAKES_MIN = 3;
+const NUM_LAKES_MAX = 5;
+const LAKE_NEIGHBORS_MIN = 1;
+const LAKE_NEIGHBORS_MAX = 3;
+const MIN_LAKE_SEPARATION = 3; // distance hex entre centres de lacs
 
 export function createInitialState(playerId: string, now: number): GameState {
   const rng = mulberry32(hashString(playerId));
@@ -25,9 +31,10 @@ export function createInitialState(playerId: string, now: number): GameState {
     const rMin = Math.max(-GRID_RADIUS, -q - GRID_RADIUS);
     const rMax = Math.min(GRID_RADIUS, -q + GRID_RADIUS);
     for (let r = rMin; r <= rMax; r++) {
-      tiles.push({ q, r, biome: pickBiome(rng), building: null });
+      tiles.push({ q, r, biome: pickLandBiome(rng), building: null });
     }
   }
+  placeLakes(tiles, rng);
   return {
     version: STATE_VERSION,
     playerId,
@@ -74,6 +81,9 @@ export function placeBuilding(
   }
 
   const tile = state.tiles[index];
+  if (tile.biome === "water") {
+    throw new GameError("NOT_BUILDABLE", "On ne bâtit pas sur l'eau.");
+  }
   if (tile.building !== null) {
     throw new GameError("TILE_OCCUPIED", "Cette tuile est déjà bâtie.");
   }
@@ -160,14 +170,79 @@ function addResources(a: Resources, b: Resources): Resources {
   };
 }
 
-function pickBiome(rng: () => number): Biome {
-  const totalWeight = BIOMES.reduce((sum, b) => sum + BIOME_WEIGHTS[b], 0);
+function pickLandBiome(rng: () => number): Biome {
+  const totalWeight = LAND_BIOMES.reduce(
+    (sum, b) => sum + LAND_WEIGHTS[b as Exclude<Biome, "water">],
+    0,
+  );
   let roll = rng() * totalWeight;
-  for (const biome of BIOMES) {
-    roll -= BIOME_WEIGHTS[biome];
+  for (const biome of LAND_BIOMES) {
+    roll -= LAND_WEIGHTS[biome as Exclude<Biome, "water">];
     if (roll <= 0) return biome;
   }
   return "plain";
+}
+
+// Génère 3-5 lacs en clusters : un centre + 1-3 voisins. Les centres sont
+// espacés d'au moins MIN_LAKE_SEPARATION pour éviter qu'ils ne fusionnent
+// en grande mer. Les centres restent à l'intérieur (rayon ≤ GRID_RADIUS-1)
+// pour ne pas mordre sur le bord.
+function placeLakes(tiles: Tile[], rng: () => number): void {
+  const tileMap = new Map<string, Tile>();
+  for (const t of tiles) tileMap.set(`${t.q}:${t.r}`, t);
+
+  const interior = tiles.filter((t) => {
+    const s = -t.q - t.r;
+    return (
+      Math.abs(t.q) <= GRID_RADIUS - 1 &&
+      Math.abs(t.r) <= GRID_RADIUS - 1 &&
+      Math.abs(s) <= GRID_RADIUS - 1
+    );
+  });
+
+  const numLakes =
+    NUM_LAKES_MIN + Math.floor(rng() * (NUM_LAKES_MAX - NUM_LAKES_MIN + 1));
+  const centers: Tile[] = [];
+
+  let attempts = 100;
+  while (centers.length < numLakes && attempts-- > 0) {
+    const cand = interior[Math.floor(rng() * interior.length)];
+    const tooClose = centers.some(
+      (c) => hexDistance(c.q, c.r, cand.q, cand.r) < MIN_LAKE_SEPARATION,
+    );
+    if (tooClose) continue;
+    centers.push(cand);
+    cand.biome = "water";
+
+    const ns = neighbors(cand.q, cand.r);
+    shuffle(ns, rng);
+    const want =
+      LAKE_NEIGHBORS_MIN +
+      Math.floor(rng() * (LAKE_NEIGHBORS_MAX - LAKE_NEIGHBORS_MIN + 1));
+    for (let i = 0; i < want && i < ns.length; i++) {
+      const [nq, nr] = ns[i];
+      const t = tileMap.get(`${nq}:${nr}`);
+      if (t) t.biome = "water";
+    }
+  }
+}
+
+function hexDistance(
+  q1: number,
+  r1: number,
+  q2: number,
+  r2: number,
+): number {
+  const dq = q1 - q2;
+  const dr = r1 - r2;
+  return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+}
+
+function shuffle<T>(arr: T[], rng: () => number): void {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
 }
 
 function hashString(input: string): number {

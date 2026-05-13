@@ -83,7 +83,9 @@ export function Board() {
   const isClickable = (q: number, r: number): boolean => {
     if (selectedKind === null || pending) return false;
     const tile = state.tiles.find((t) => t.q === q && t.r === r);
-    return tile !== undefined && tile.building === null;
+    if (!tile) return false;
+    if (tile.biome === "water") return false;
+    return tile.building === null;
   };
 
   return (

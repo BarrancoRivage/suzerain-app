@@ -11,6 +11,7 @@ import {
 import { BlendFunction, ToneMappingMode } from "postprocessing";
 
 import type { GameState } from "@/lib/game/types";
+import { EdgePanControls } from "./EdgePanControls";
 import { HexTile } from "./HexTile";
 import { Landscape } from "./Landscape";
 
@@ -27,7 +28,7 @@ export function Scene({ state, clickableTileKey, onTileClick }: Props) {
   return (
     <>
       <color attach="background" args={["#F5EFE0"]} />
-      <fog attach="fog" args={[FOG_COLOR, 20, 38]} />
+      <fog attach="fog" args={[FOG_COLOR, 35, 65]} />
 
       {/* IBL pour l'éclairage indirect des matériaux PBR. */}
       <Suspense fallback={null}>
@@ -44,12 +45,12 @@ export function Scene({ state, clickableTileKey, onTileClick }: Props) {
         color="#FFE9B8"
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-14}
-        shadow-camera-right={14}
-        shadow-camera-top={14}
-        shadow-camera-bottom={-14}
+        shadow-camera-left={-22}
+        shadow-camera-right={22}
+        shadow-camera-top={22}
+        shadow-camera-bottom={-22}
         shadow-camera-near={1}
-        shadow-camera-far={40}
+        shadow-camera-far={60}
         shadow-bias={-0.0002}
         shadow-normalBias={0.04}
       />
@@ -71,14 +72,15 @@ export function Scene({ state, clickableTileKey, onTileClick }: Props) {
       <OrbitControls
         makeDefault
         enablePan={false}
-        minDistance={9}
-        maxDistance={30}
+        minDistance={15}
+        maxDistance={55}
         minPolarAngle={Math.PI / 6}
         maxPolarAngle={Math.PI / 2.4}
         target={[0, 0, 0]}
-        zoomSpeed={0.6}
+        zoomSpeed={0.8}
         rotateSpeed={0.5}
       />
+      <EdgePanControls />
 
       {/* Post-processing léger : Bloom + Vignette + ACES.
           N8AO et SoftShadows retirés (~50 % du frame budget gagné). */}

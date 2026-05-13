@@ -20,7 +20,7 @@ export function HexBoard({ state, clickableTileKey, onTileClick }: Props) {
         // qui s'en charge via la passe ToneMapping ACES_FILMIC.
         flat
         dpr={[1, 2]}
-        camera={{ position: [0, 13, 16], fov: 38, near: 0.1, far: 100 }}
+        camera={{ position: [0, 22, 28], fov: 38, near: 0.1, far: 150 }}
         gl={{ antialias: false, powerPreference: "high-performance" }}
       >
         <Scene

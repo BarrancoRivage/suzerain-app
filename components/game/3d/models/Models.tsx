@@ -14,6 +14,7 @@ const KAYKIT_SCALE = Math.sqrt(3) / 2;
 const PATHS = {
   // Tiles (chunk hexagonal avec dirt sides et top texturé)
   hexGrass: "/models/kaykit/tiles/hex_grass.gltf",
+  hexWater: "/models/kaykit/tiles/hex_water.gltf",
 
   // Buildings (faction rouge — cohérent avec la palette `blood` Suzerain)
   homeA: "/models/kaykit/buildings_red/building_home_A_red.gltf",
@@ -67,6 +68,12 @@ function KayKit({ path, scale = 1 }: { path: string; scale?: number }) {
 
 export function HexGrassTile() {
   return <KayKit path={PATHS.hexGrass} />;
+}
+
+// Tuile d'eau : modèle KayKit avec surface bleue légèrement enfoncée
+// (Y range [-1, -0.2] avant scale, soit ~17 cm sous le niveau du grass top).
+export function HexWaterTile() {
+  return <KayKit path={PATHS.hexWater} />;
 }
 
 // --- Décors de biome (posés SUR la tuile hex_grass). ---
