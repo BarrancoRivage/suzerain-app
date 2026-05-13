@@ -1,21 +1,29 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { Mesh } from "three";
+import type { Group } from "three";
 import { useFrame } from "@react-three/fiber";
 
-import type { Biome, Tile } from "@/lib/game/types";
-import { HEX_HEIGHT, HEX_SIZE, axialToWorld } from "./hexMath";
-import { BiomeDecor } from "./BiomeDecor";
-import { BuildingMesh } from "./BuildingMesh";
+import { hashCoord } from "@/lib/game/rng";
+import type { Tile } from "@/lib/game/types";
+import { axialToWorld, reliefNoise } from "./hexMath";
+import {
+  FarmModel,
+  ForestDecor,
+  HexGrassTile,
+  HexRiverTile,
+  HexRoadTile,
+  HexWaterTile,
+  HillsDecor,
+  MineModel,
+  WaterDecor,
+} from "./models/Models";
 
-const BIOME_COLORS: Readonly<Record<Biome, string>> = {
-  plain: "#C9B07A",
-  forest: "#4F6F4A",
-  hill: "#9C8769",
-};
-
-const HOVER_COLOR = "#E9C76A";
+// Tuiles jouables : on reste TOUJOURS au-dessus du sol périphérique (jamais
+// de tuile enterrée). baseline = (reliefNoise + 1) * 0.15, soit ~0 à ~30 cm
+// au-dessus du grass-top de référence. Le sol périphérique va plus haut
+// encore (80 cm) en empruntant la même fonction `reliefNoise`.
+const TILE_RELIEF_AMPLITUDE = 0.15;
 
 type Props = {
   tile: Tile;
@@ -25,65 +33,100 @@ type Props = {
 
 export function HexTile({ tile, clickable, onClick }: Props) {
   const [hovered, setHovered] = useState(false);
-  const groupRef = useRef<Mesh>(null);
+  const groupRef = useRef<Group>(null);
   const [x, z] = axialToWorld(tile.q, tile.r);
-  const seed = hashCoord(tile.q, tile.r);
+  // reliefNoise est dans [-0.97, 0.97]. On le décale et on prend max(0, …)
+  // pour ne descendre jamais sous Y=0 (= jamais enterrée par le ground plane).
+  const baselineY = Math.max(
+    0,
+    (reliefNoise(x, z) + 1) * TILE_RELIEF_AMPLITUDE,
+  );
 
-  // Lift-on-hover : 8 px of perceived bump quand clickable.
+  // La tuile a une Y de base déterministe (relief partagé avec le sol),
+  // sur laquelle se superpose le hover lift quand elle est clickable.
   useFrame((_, delta) => {
     if (!groupRef.current) return;
-    const target = clickable && hovered ? 0.08 : 0;
-    groupRef.current.position.y += (target - groupRef.current.position.y) * Math.min(1, delta * 12);
+    const target = baselineY + (clickable && hovered ? 0.14 : 0);
+    const lerp = Math.min(1, delta * 12);
+    groupRef.current.position.y += (target - groupRef.current.position.y) * lerp;
   });
 
-  const baseColor = BIOME_COLORS[tile.biome];
-  const fillColor = clickable && hovered ? HOVER_COLOR : baseColor;
-
   return (
-    <group ref={groupRef} position={[x, 0, z]}>
-      <mesh
-        castShadow
-        receiveShadow
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHovered(true);
-          if (clickable) document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={(e) => {
-          e.stopPropagation();
-          setHovered(false);
-          document.body.style.cursor = "";
-        }}
-        onClick={(e) => {
-          if (!clickable) return;
-          e.stopPropagation();
-          onClick();
-        }}
-      >
-        <cylinderGeometry args={[HEX_SIZE, HEX_SIZE, HEX_HEIGHT, 6]} />
-        <meshStandardMaterial
-          color={fillColor}
-          roughness={0.95}
-          emissive={clickable && hovered ? HOVER_COLOR : "#000000"}
-          emissiveIntensity={clickable && hovered ? 0.15 : 0}
-        />
-      </mesh>
-
-      <group position={[0, HEX_HEIGHT / 2, 0]}>
-        {tile.building ? (
-          <BuildingMesh kind={tile.building.kind} />
-        ) : (
-          <BiomeDecor biome={tile.biome} seed={seed} />
-        )}
-      </group>
+    <group
+      ref={groupRef}
+      position={[x, 0, z]}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        setHovered(true);
+        if (clickable) document.body.style.cursor = "pointer";
+      }}
+      onPointerOut={(e) => {
+        e.stopPropagation();
+        setHovered(false);
+        document.body.style.cursor = "";
+      }}
+      onClick={(e) => {
+        if (!clickable) return;
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      <TileBase tile={tile} />
+      {/* Le contenu de la tuile (bâtiment ou décor de biome) est réduit pour
+          ne pas remplir entièrement le hex — laisse respirer le bord. */}
+      {tile.biome !== "water" && (
+        <group scale={0.72}>
+          <TopDressing tile={tile} />
+        </group>
+      )}
+      {tile.biome === "water" && <WaterTopDressing tile={tile} />}
     </group>
   );
 }
 
-function hashCoord(q: number, r: number): number {
-  let h = 2166136261 ^ q;
-  h = Math.imul(h, 16777619);
-  h ^= r;
-  h = Math.imul(h, 16777619);
-  return h >>> 0;
+// La tuile : rivière > eau > route > grass. Forêt et colline sont des
+// décors empilés par-dessus le grass.
+function TileBase({ tile }: { tile: Tile }) {
+  if (tile.path?.type === "river") {
+    return <HexRiverTile inEdge={tile.path.inEdge} outEdge={tile.path.outEdge} />;
+  }
+  if (tile.biome === "water") return <HexWaterTile />;
+  if (tile.path?.type === "road") {
+    return <HexRoadTile inEdge={tile.path.inEdge} outEdge={tile.path.outEdge} />;
+  }
+  return <HexGrassTile />;
 }
+
+// Bâtiment > biome decor > rien. Quand un bâtiment est posé, on fait disparaître
+// le décor naturel (champ défriché). Les tuiles avec un path (rivière ou
+// route) ne reçoivent pas de décor de biome — le mesh de la tuile elle-même
+// porte déjà l'élément (eau, chemin).
+function TopDressing({ tile }: { tile: Tile }) {
+  const seed = hashCoord(tile.q, tile.r);
+
+  if (tile.building) {
+    if (tile.building.kind === "farm") return <FarmModel seed={seed} />;
+    return <MineModel />;
+  }
+
+  if (tile.path) return null;
+  if (tile.biome === "forest") return <ForestDecor seed={seed} />;
+  if (tile.biome === "hill") return <HillsDecor seed={seed} />;
+  return null;
+}
+
+// ~40 % des tuiles d'eau reçoivent un nénuphar / roseau. Posé sur la surface
+// de l'eau (Y = 0 dans le repère du HexTile, qui est aussi le top de la
+// tuile water après son raise interne).
+function WaterTopDressing({ tile }: { tile: { q: number; r: number } }) {
+  const seed = hashCoord(tile.q, tile.r);
+  if (seed % 5 < 2) {
+    return (
+      <group position={[0, 0, 0]} scale={0.55}>
+        <WaterDecor seed={seed} />
+      </group>
+    );
+  }
+  return null;
+}
+
