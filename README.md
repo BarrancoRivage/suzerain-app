@@ -2,7 +2,7 @@
 
 Jeu web multijoueur asynchrone de stratégie médiévale (4X de gestion seigneuriale, parties de 4-6 semaines, 4-8 joueurs). Pixel art, parchemin, temps réel lent.
 
-Ce dépôt est à la version **v0.2** — fondations du moteur de jeu en solo : grille 6×6, pose d'une Ferme, production de grain en temps réel persistée sur Upstash Redis (Vercel Marketplace).
+Ce dépôt est à la version **v0.2** — fondations du moteur de jeu en solo : grille 6×6, pose d'une Ferme, production de grain en temps réel persistée sur Supabase (Postgres via Vercel Marketplace).
 
 ---
 
@@ -12,7 +12,7 @@ Prérequis : Node.js 20+ (Node 24 LTS recommandé, identique à Vercel) et [pnpm
 
 ```bash
 pnpm install
-# Synchroniser les secrets Upstash depuis Vercel (une seule fois)
+# Synchroniser les secrets Supabase depuis Vercel (une seule fois)
 pnpm dlx vercel link
 pnpm dlx vercel env pull .env.local
 pnpm dev
@@ -22,13 +22,29 @@ Ouvre [http://localhost:3000](http://localhost:3000) (landing) puis [/play](http
 
 Endpoint santé : [http://localhost:3000/api/health](http://localhost:3000/api/health) → `{ "status": "ok", "version": "0.2.0" }`.
 
-### Pré-requis Vercel (une fois)
+### Pré-requis Vercel + Supabase (une fois)
 
-L'écran `/play` lit/écrit son état dans Redis via le Marketplace Vercel :
+L'écran `/play` lit/écrit son état dans Postgres via Supabase :
 
-1. vercel.com → projet → **Storage** → **Browse Marketplace** → installer **Upstash Redis** (free tier suffit).
-2. Connecter au projet : Vercel provisionne automatiquement `KV_REST_API_URL` / `KV_REST_API_TOKEN` dans Development, Preview et Production.
-3. En local : `pnpm dlx vercel env pull .env.local` pour synchroniser les variables.
+1. vercel.com → projet `suzerain-app` → **Storage** → **Browse Marketplace** → choisir **Supabase** (free tier suffit) → **Create**.
+2. Lier au projet : Vercel provisionne `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (et leurs jumeaux `NEXT_PUBLIC_*`) dans Development, Preview et Production.
+3. Dans le dashboard Supabase → **SQL Editor** → **New query** → coller et exécuter :
+
+   ```sql
+   create table public.game_states (
+     player_id   uuid        primary key,
+     state       jsonb       not null,
+     updated_at  timestamptz not null default now()
+   );
+
+   -- RLS activée sans policy : seul le service role (utilisé par les Server Actions) peut lire/écrire.
+   -- À l'arrivée de l'auth (v0.3), on ajoutera une policy `auth.uid() = player_id`.
+   alter table public.game_states enable row level security;
+   ```
+
+4. En local : `pnpm dlx vercel env pull .env.local` pour synchroniser les variables. Redémarrer `pnpm dev`.
+
+> ⚠️ `SUPABASE_SERVICE_ROLE_KEY` est un secret serveur — ne l'expose jamais côté client (pas de préfixe `NEXT_PUBLIC_`, accédée uniquement dans `lib/supabase.ts` qui est consommée par les Server Actions).
 
 Autres scripts utiles :
 
@@ -92,10 +108,9 @@ suzerain-game/
 │   │   ├── types.ts        # GameState, Tile, Building, GameError
 │   │   ├── buildings.ts    # Config statique des bâtiments
 │   │   └── engine.ts       # Fonctions pures : tick, placeBuilding
-│   ├── kv.ts               # Upstash Redis (loadState / saveState)
+│   ├── supabase.ts         # Client Supabase server-only (loadState / saveState)
 │   ├── session.ts          # Cookie playerId anonyme (en attendant l'auth)
-│   ├── db.ts               # Placeholder pour DB relationnelle (v0.3+)
-│   └── auth.ts             # Placeholder pour l'auth (v0.3)
+│   └── auth.ts             # Placeholder pour l'auth Supabase (v0.3)
 ├── public/
 │   └── favicon.svg         # Couronne pixel art en favicon
 ├── tailwind.config.ts      # Palette parchment/ink/blood/moss/gold + fonts

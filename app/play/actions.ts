@@ -7,7 +7,7 @@ import {
   tick,
 } from "@/lib/game/engine";
 import type { BuildingKind, GameState } from "@/lib/game/types";
-import { loadState, saveState } from "@/lib/kv";
+import { loadState, saveState } from "@/lib/supabase";
 import { getOrCreatePlayerId } from "@/lib/session";
 
 export type GameActionResult =
