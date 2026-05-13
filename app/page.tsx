@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { CrownIcon } from "@/components/CrownIcon";
 
 export default function HomePage() {
@@ -16,9 +18,17 @@ export default function HomePage() {
           Anno 1247. Le royaume d&rsquo;Aldemar attend son seigneur.
         </p>
 
-        <span className="mt-10 inline-flex items-center gap-2 rounded-full border border-gold/40 bg-parchment/60 px-4 py-1.5 text-xs sm:text-sm font-sans text-ink/70 tracking-wide">
+        <Link
+          href="/play"
+          className="mt-10 inline-flex items-center gap-3 rounded-md border border-gold bg-parchment px-6 py-3 font-serif text-lg text-ink shadow-sm transition-colors hover:border-blood hover:bg-parchment hover:text-blood"
+        >
+          Entrer dans le royaume
+          <span aria-hidden="true">→</span>
+        </Link>
+
+        <span className="mt-6 inline-flex items-center gap-2 rounded-full border border-gold/40 bg-parchment/60 px-4 py-1.5 text-xs sm:text-sm font-sans text-ink/70 tracking-wide">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-blood" />
-          v0.0.1 — Le suzerain pose la première pierre.
+          v0.2 — Le fief s&rsquo;éveille.
         </span>
       </section>
 
