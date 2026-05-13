@@ -18,8 +18,10 @@ import {
 // + montagnes (mountain_*) au loin, scattered dans un anneau autour du
 // disque jouable. Pas de tuiles hex au-delà de la zone interactive.
 
-const KAYKIT_SCALE = Math.sqrt(3) / 2;
-const TILE_BOTTOM_Y = -KAYKIT_SCALE;
+// Le sol périphérique remonte presque pile au niveau du haut des tuiles —
+// 5 cm sous le grass top, juste assez pour qu'on devine un léger relief à
+// la frontière sans donner l'impression d'un plateau de jeu surélevé.
+const TILE_BOTTOM_Y = -0.05;
 const GROUND_COLOR = "#7BA549";
 const GROUND_SIZE = 56;
 

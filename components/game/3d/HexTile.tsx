@@ -56,7 +56,11 @@ export function HexTile({ tile, clickable, onClick }: Props) {
       }}
     >
       <HexGrassTile />
-      <TopDressing tile={tile} />
+      {/* Le contenu de la tuile (bâtiment ou décor de biome) est réduit pour
+          ne pas remplir entièrement le hex — laisse respirer le bord. */}
+      <group scale={0.72}>
+        <TopDressing tile={tile} />
+      </group>
     </group>
   );
 }

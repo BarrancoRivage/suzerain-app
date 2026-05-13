@@ -71,10 +71,14 @@ export function HexGrassTile() {
 
 // --- Décors de biome (posés SUR la tuile hex_grass). ---
 
+// On privilégie les variantes les plus petites pour ne pas saturer la tuile :
+// trees_A_small et hills_B/C lisent comme « biome forêt/colline » sans
+// remplir tout l'hex. trees_A_medium reste utilisable de temps en temps
+// pour la variété ; trees_A_large évité, c'était trop dense.
 const FOREST_TILE_PATHS = [
   PATHS.forestSmall,
+  PATHS.forestSmall,
   PATHS.forestMedium,
-  PATHS.forestLarge,
 ] as const;
 
 export function ForestDecor({ seed }: { seed: number }) {
@@ -82,7 +86,7 @@ export function ForestDecor({ seed }: { seed: number }) {
   return <KayKit path={path} />;
 }
 
-const HILLS_PATHS = [PATHS.hillsA, PATHS.hillsB, PATHS.hillsC] as const;
+const HILLS_PATHS = [PATHS.hillsB, PATHS.hillsC] as const;
 
 export function HillsDecor({ seed }: { seed: number }) {
   const path = HILLS_PATHS[Math.abs(seed) % HILLS_PATHS.length];
