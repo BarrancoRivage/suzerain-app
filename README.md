@@ -6,72 +6,55 @@ Ce dépôt est à la version **v0.2** — fondations du moteur de jeu en solo : 
 
 ---
 
-## Lancer en local
+## Lancer en local (Docker — recommandé)
 
-Prérequis : Node.js 20+ (Node 24 LTS recommandé, identique à Vercel) et [pnpm](https://pnpm.io/installation).
-
-```bash
-pnpm install
-# Synchroniser les secrets Supabase depuis Vercel (une seule fois)
-pnpm dlx vercel link
-pnpm dlx vercel env pull .env.local
-pnpm dev
-```
-
-Ouvre [http://localhost:3000](http://localhost:3000) (landing) puis [/play](http://localhost:3000/play) (le fief).
-
-Endpoint santé : [http://localhost:3000/api/health](http://localhost:3000/api/health) → `{ "status": "ok", "version": "0.2.0" }`.
-
-### Pré-requis Vercel + Supabase (une fois)
-
-L'écran `/play` lit/écrit son état dans Postgres via Supabase :
-
-1. vercel.com → projet `suzerain-app` → **Storage** → **Browse Marketplace** → choisir **Supabase** (free tier suffit) → **Create**.
-2. Lier au projet : Vercel provisionne `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (et leurs jumeaux `NEXT_PUBLIC_*`) dans Development, Preview et Production.
-3. Dans le dashboard Supabase → **SQL Editor** → **New query** → coller et exécuter :
-
-   ```sql
-   create table public.game_states (
-     player_id   uuid        primary key,
-     state       jsonb       not null,
-     updated_at  timestamptz not null default now()
-   );
-
-   -- RLS activée sans policy : seul le service role (utilisé par les Server Actions) peut lire/écrire.
-   -- À l'arrivée de l'auth (v0.3), on ajoutera une policy `auth.uid() = player_id`.
-   alter table public.game_states enable row level security;
-   ```
-
-4. En local : `pnpm dlx vercel env pull .env.local` pour synchroniser les variables. Redémarrer `pnpm dev`.
-
-> ⚠️ `SUPABASE_SERVICE_ROLE_KEY` est un secret serveur — ne l'expose jamais côté client (pas de préfixe `NEXT_PUBLIC_`, accédée uniquement dans `lib/supabase.ts` qui est consommée par les Server Actions).
-
-Autres scripts utiles :
+Prérequis : [Docker Desktop](https://www.docker.com/products/docker-desktop/) (ou équivalent). Pas besoin d'installer Node ou pnpm sur ton poste.
 
 ```bash
-pnpm build       # build de prod
-pnpm start       # serveur prod local
-pnpm lint        # ESLint
-pnpm typecheck   # tsc --noEmit (strict)
-```
-
----
-
-## Lancer avec Docker
-
-Alternative à `pnpm dev` si tu préfères isoler l'environnement. Prérequis : [Docker Desktop](https://www.docker.com/products/docker-desktop/) (ou équivalent).
-
-```bash
-# Dev avec HMR — la source est montée, node_modules vit dans un volume nommé
 docker compose up --build
+```
 
-# Valider le build de prod en local (image standalone, non-root, healthcheck /api/health)
+Ça démarre deux conteneurs :
+
+- `suzerain-db` — Postgres 16 isolé du cloud, schéma chargé automatiquement depuis `docker/postgres/init/*.sql` au premier boot.
+- `suzerain-dev` — Next.js en mode dev avec HMR, source montée, attend que la DB soit *healthy* avant de démarrer.
+
+Ouvre [http://localhost:3000](http://localhost:3000) (landing) puis [/play](http://localhost:3000/play) (le fief). Endpoint santé : [/api/health](http://localhost:3000/api/health) → `{ "status": "ok", "version": "0.2.0" }`.
+
+Pour valider l'image de prod en local (standalone, non-root, healthcheck) :
+
+```bash
 docker compose --profile prod up --build
 ```
 
-Dans les deux cas, l'app écoute sur [http://localhost:3000](http://localhost:3000). Les secrets Supabase sont lus depuis `.env.local` (récupéré via `vercel env pull`) — le fichier est optionnel : sans lui l'app démarre mais `/play` lèvera une erreur.
+`DATABASE_URL` est injectée par le compose (`postgres://suzerain:suzerain@postgres:5432/suzerain`) et override toute valeur de `.env.local` — la DB locale est toujours utilisée, jamais la prod par accident.
 
-Layout : `Dockerfile` multi-stage (`base` → `deps` → `dev` / `builder` → `runner`). L'étape `runner` part de `node:24-alpine` et n'embarque que `.next/standalone` + `.next/static` + `public/`, sans pnpm ni devDependencies — image finale autour de 300 Mo, conteneur tournant en non-root avec `HEALTHCHECK` sur `/api/health`.
+Layout : `Dockerfile` multi-stage (`base` → `deps` → `dev` / `builder` → `runner`). L'étape `runner` part de `node:24-alpine` et n'embarque que `.next/standalone` + `.next/static` + `public/`, sans pnpm ni devDependencies — image finale ~300 Mo, conteneur non-root avec `HEALTHCHECK` sur `/api/health`.
+
+### Lancer en local (sans Docker)
+
+Si tu préfères : Node.js 20+ (Node 24 LTS recommandé, identique à Vercel), [pnpm](https://pnpm.io/installation), et un Postgres accessible (instance Supabase, brew, etc.).
+
+```bash
+pnpm install
+echo 'DATABASE_URL="postgres://..."' > .env.local
+pnpm dev
+```
+
+Autres scripts utiles : `pnpm build`, `pnpm start`, `pnpm lint`, `pnpm typecheck`.
+
+### Schéma de la table
+
+Auto-appliqué en Docker via `docker/postgres/init/001_schema.sql`. Sur une DB pré-existante (Supabase prod, etc.), à exécuter une fois dans le SQL Editor :
+
+```sql
+create table public.game_states (
+  player_id   uuid        primary key,
+  state       jsonb       not null,
+  updated_at  timestamptz not null default now()
+);
+alter table public.game_states enable row level security;
+```
 
 ---
 
@@ -92,9 +75,13 @@ Remplace `USERNAME` par ton compte GitHub. Nom de dépôt recommandé : `suzerai
 
 1. Va sur [vercel.com](https://vercel.com) → **New Project** → **Import** depuis GitHub.
 2. Sélectionne le dépôt `suzerain-game`.
-3. Vercel détecte Next.js automatiquement — aucune configuration nécessaire.
-4. Aucune variable d'environnement requise pour cette étape.
-5. Clique **Deploy**.
+3. Vercel détecte Next.js automatiquement.
+4. Ajouter une variable d'environnement `DATABASE_URL` pointant vers la **connection string Supabase**, mode *Transaction* (port 6543, requis pour serverless) :
+   - Supabase Dashboard → **Settings → Database → Connection pooling** → URI → mode **Transaction** → copier.
+   - Format : `postgres://postgres.<ref>:<pwd>@aws-0-<region>.pooler.supabase.com:6543/postgres?sslmode=require`
+   - À déclarer pour les environnements *Production* (et *Preview* si tu veux que les previews tapent une DB).
+5. Exécute le snippet de schéma ci-dessus dans le SQL Editor Supabase (une seule fois).
+6. Clique **Deploy**.
 
 Le déploiement se fait automatiquement à chaque push sur `main`. Les autres branches déclenchent des **Preview Deployments** avec une URL dédiée.
 

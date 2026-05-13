@@ -1,28 +1,54 @@
-# Deux services :
-#   - `web`  (par défaut) : dev avec HMR, source montée en volume
-#   - `prod` (profil prod) : image standalone pour valider le build de prod en local
+# Deux services applicatifs + une DB locale :
+#   - `postgres` : DB isolée pour le dev. Init SQL auto-chargé au 1er boot.
+#   - `web`      (par défaut) : dev avec HMR, source montée, attend que la DB soit healthy.
+#   - `prod`     (profil prod) : image standalone pour valider le build de prod en local.
 #
 # Utilisation :
-#   docker compose up                 # dev → http://localhost:3000
-#   docker compose --profile prod up  # prod → http://localhost:3000
+#   docker compose up                 # web + postgres → http://localhost:3000
+#   docker compose --profile prod up  # prod + postgres → http://localhost:3000
+#
+# DATABASE_URL est injectée en clair (pas un secret en dev) et override toute
+# valeur héritée de .env.local — on est garanti de taper la DB locale.
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: suzerain-db
+    environment:
+      POSTGRES_USER: suzerain
+      POSTGRES_PASSWORD: suzerain
+      POSTGRES_DB: suzerain
+    ports:
+      - "5432:5432"
+    volumes:
+      - suzerain_db_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U suzerain -d suzerain"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
   web:
     build:
       context: .
       target: dev
     image: suzerain-app:dev
     container_name: suzerain-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://suzerain:suzerain@postgres:5432/suzerain
     env_file:
       - path: .env.local
         required: false
     ports:
       - "3000:3000"
     volumes:
-      # Source montée pour le HMR…
       - .:/app
-      # …mais on masque node_modules et .next avec des volumes nommés pour ne pas
-      # mélanger les binaires natifs de l'hôte (macOS) avec ceux d'alpine.
       - suzerain_node_modules:/app/node_modules
       - suzerain_next_cache:/app/.next
     restart: unless-stopped
@@ -34,6 +60,11 @@ services:
       target: runner
     image: suzerain-app:prod
     container_name: suzerain-prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://suzerain:suzerain@postgres:5432/suzerain
     env_file:
       - path: .env.local
         required: false
@@ -44,3 +75,4 @@ services:
 volumes:
   suzerain_node_modules:
   suzerain_next_cache:
+  suzerain_db_data:
