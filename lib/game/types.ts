@@ -1,5 +1,5 @@
 export const GRID_RADIUS = 6;
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 
 export type ResourceKind = "grain" | "gold";
 
@@ -12,11 +12,21 @@ export type Building = {
   placedAt: number;
 };
 
+// Indice de l'axe hex sur lequel s'aligne un chemin (rivière, route).
+// 0 = axe q (E-O), 1 = axe r (NO-SE), 2 = axe q-r (NE-SO).
+export type PathAxis = 0 | 1 | 2;
+
+export type TilePath = {
+  type: "river" | "road";
+  axis: PathAxis;
+};
+
 export type Tile = {
   q: number;
   r: number;
   biome: Biome;
   building: Building | null;
+  path?: TilePath;
 };
 
 export type Resources = Record<ResourceKind, number>;

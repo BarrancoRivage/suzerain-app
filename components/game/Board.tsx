@@ -85,6 +85,7 @@ export function Board() {
     const tile = state.tiles.find((t) => t.q === q && t.r === r);
     if (!tile) return false;
     if (tile.biome === "water") return false;
+    if (tile.path) return false;
     return tile.building === null;
   };
 

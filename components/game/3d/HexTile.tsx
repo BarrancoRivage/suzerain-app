@@ -10,6 +10,8 @@ import {
   FarmModel,
   ForestDecor,
   HexGrassTile,
+  HexRiverTile,
+  HexRoadTile,
   HexWaterTile,
   HillsDecor,
   MineModel,
@@ -81,15 +83,19 @@ export function HexTile({ tile, clickable, onClick }: Props) {
   );
 }
 
-// La tuile : eau (surface bleue) ou hex_grass (plat) pour tout le reste.
-// Forêt et colline sont des décors empilés par-dessus le grass.
+// La tuile : rivière > eau > route > grass. Forêt et colline sont des
+// décors empilés par-dessus le grass.
 function TileBase({ tile }: { tile: Tile }) {
+  if (tile.path?.type === "river") return <HexRiverTile axis={tile.path.axis} />;
   if (tile.biome === "water") return <HexWaterTile />;
+  if (tile.path?.type === "road") return <HexRoadTile axis={tile.path.axis} />;
   return <HexGrassTile />;
 }
 
 // Bâtiment > biome decor > rien. Quand un bâtiment est posé, on fait disparaître
-// le décor naturel (champ défriché).
+// le décor naturel (champ défriché). Les tuiles avec un path (rivière ou
+// route) ne reçoivent pas de décor de biome — le mesh de la tuile elle-même
+// porte déjà l'élément (eau, chemin).
 function TopDressing({ tile }: { tile: Tile }) {
   const seed = hashCoord(tile.q, tile.r);
 
@@ -98,6 +104,7 @@ function TopDressing({ tile }: { tile: Tile }) {
     return <MineModel />;
   }
 
+  if (tile.path) return null;
   if (tile.biome === "forest") return <ForestDecor seed={seed} />;
   if (tile.biome === "hill") return <HillsDecor seed={seed} />;
   return null;

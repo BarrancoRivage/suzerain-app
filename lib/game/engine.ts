@@ -6,6 +6,7 @@ import {
   type Biome,
   type BuildingKind,
   type GameState,
+  type PathAxis,
   type ResourceKind,
   type Resources,
   type Tile,
@@ -35,6 +36,8 @@ export function createInitialState(playerId: string, now: number): GameState {
     }
   }
   placeLakes(tiles, rng);
+  placePath(tiles, rng, "river");
+  placePath(tiles, rng, "road");
   return {
     version: STATE_VERSION,
     playerId,
@@ -83,6 +86,14 @@ export function placeBuilding(
   const tile = state.tiles[index];
   if (tile.biome === "water") {
     throw new GameError("NOT_BUILDABLE", "On ne bâtit pas sur l'eau.");
+  }
+  if (tile.path) {
+    throw new GameError(
+      "NOT_BUILDABLE",
+      tile.path.type === "river"
+        ? "Le cours d'eau traverse cette tuile."
+        : "Une route traverse déjà cette tuile.",
+    );
   }
   if (tile.building !== null) {
     throw new GameError("TILE_OCCUPIED", "Cette tuile est déjà bâtie.");
@@ -236,6 +247,46 @@ function hexDistance(
   const dq = q1 - q2;
   const dr = r1 - r2;
   return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+}
+
+// Place une rivière ou une route en ligne droite à travers le disque, sur
+// l'un des 3 axes hex. La rivière noie toutes les tuiles de sa ligne
+// (biome → water). La route reste sur du terrain land et ne traverse pas
+// les tuiles d'eau (river ou lac existant).
+function placePath(
+  tiles: Tile[],
+  rng: () => number,
+  kind: "river" | "road",
+): void {
+  const axis: PathAxis = Math.floor(rng() * 3) as PathAxis;
+  // Offset perpendiculaire à l'axe, ∈ [-(R-1), +(R-1)] pour garantir une
+  // ligne d'au moins 2 tuiles (en évitant les sommets du disque).
+  const range = GRID_RADIUS - 1;
+  const offset = Math.floor(rng() * (2 * range + 1)) - range;
+
+  for (const tile of tiles) {
+    if (!isOnAxisLine(tile.q, tile.r, axis, offset)) continue;
+    if (kind === "river") {
+      if (tile.path?.type === "road") continue; // la route gardée
+      tile.biome = "water";
+      tile.path = { type: "river", axis };
+    } else {
+      if (tile.biome === "water") continue; // pas de route dans le lac
+      if (tile.path?.type === "river") continue; // ne pas écraser une rivière
+      tile.path = { type: "road", axis };
+    }
+  }
+}
+
+function isOnAxisLine(
+  q: number,
+  r: number,
+  axis: PathAxis,
+  offset: number,
+): boolean {
+  if (axis === 0) return r === offset;
+  if (axis === 1) return q === offset;
+  return -q - r === offset;
 }
 
 function shuffle<T>(arr: T[], rng: () => number): void {
