@@ -1,9 +1,11 @@
-export const GRID_SIZE = 6;
-export const STATE_VERSION = 2;
+export const GRID_RADIUS = 3;
+export const STATE_VERSION = 3;
 
 export type ResourceKind = "grain" | "gold";
 
 export type BuildingKind = "farm" | "mine";
+
+export type Biome = "plain" | "forest" | "hill";
 
 export type Building = {
   kind: BuildingKind;
@@ -11,8 +13,9 @@ export type Building = {
 };
 
 export type Tile = {
-  x: number;
-  y: number;
+  q: number;
+  r: number;
+  biome: Biome;
   building: Building | null;
 };
 

@@ -29,8 +29,8 @@ export async function loadGameAction(): Promise<GameActionResult> {
 }
 
 export async function placeBuildingAction(
-  x: number,
-  y: number,
+  q: number,
+  r: number,
   kind: BuildingKind,
 ): Promise<GameActionResult> {
   try {
@@ -39,7 +39,7 @@ export async function placeBuildingAction(
     const existing = await loadState(playerId);
     const base = existing ?? createInitialState(playerId, now);
     const ticked = tick(base, now);
-    const updated = placeBuilding(ticked, x, y, kind);
+    const updated = placeBuilding(ticked, q, r, kind);
     await saveState(updated);
     return { ok: true, state: updated };
   } catch (error) {

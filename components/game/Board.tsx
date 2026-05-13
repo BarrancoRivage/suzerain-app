@@ -1,15 +1,29 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState, useTransition } from "react";
 
 import {
   loadGameAction,
   placeBuildingAction,
 } from "@/app/play/actions";
-import { GRID_SIZE, type BuildingKind, type GameState } from "@/lib/game/types";
+import type { BuildingKind, GameState } from "@/lib/game/types";
 import { BuildPanel } from "./BuildPanel";
 import { ResourcePanel } from "./ResourcePanel";
-import { TileCell } from "./Tile";
+
+// Canvas WebGL : importé dynamiquement, ssr:false. Le bundle three+R3F+drei
+// ne charge qu'à l'arrivée sur /play, jamais sur la landing.
+const HexBoard = dynamic(
+  () => import("./3d/HexBoard").then((m) => m.HexBoard),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="absolute inset-0 flex items-center justify-center font-serif italic text-ink/40">
+        La carte se déploie…
+      </div>
+    ),
+  },
+);
 
 export function Board() {
   const [state, setState] = useState<GameState | null>(null);
@@ -33,12 +47,12 @@ export function Board() {
     };
   }, []);
 
-  function handleTileClick(x: number, y: number) {
+  function handleTileClick(q: number, r: number) {
     if (selectedKind === null || pending) return;
     const kind = selectedKind;
     setActionError(null);
     startTransition(async () => {
-      const res = await placeBuildingAction(x, y, kind);
+      const res = await placeBuildingAction(q, r, kind);
       if (res.ok) {
         setState(res.state);
         setSelectedKind(null);
@@ -50,54 +64,55 @@ export function Board() {
 
   if (loadError !== null) {
     return (
-      <div className="max-w-md mx-auto mt-16 rounded-md border border-blood/40 bg-parchment/80 p-6 text-center font-serif text-blood">
-        {loadError}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="rounded-md border border-blood/40 bg-parchment/80 p-6 font-serif text-blood">
+          {loadError}
+        </div>
       </div>
     );
   }
 
   if (state === null) {
     return (
-      <div className="max-w-md mx-auto mt-16 text-center font-serif italic text-ink/40">
+      <div className="absolute inset-0 flex items-center justify-center font-serif italic text-ink/40">
         Le royaume s&rsquo;éveille…
       </div>
     );
   }
 
+  const isClickable = (q: number, r: number): boolean => {
+    if (selectedKind === null || pending) return false;
+    const tile = state.tiles.find((t) => t.q === q && t.r === r);
+    return tile !== undefined && tile.building === null;
+  };
+
   return (
-    <div className="w-full max-w-3xl mx-auto flex flex-col items-center gap-10 py-10 px-6">
-      <ResourcePanel state={state} />
-
-      <div
-        className="grid gap-1.5 w-full max-w-md"
-        style={{
-          gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))`,
-        }}
-      >
-        {state.tiles.map((tile) => {
-          const clickable =
-            selectedKind !== null && tile.building === null && !pending;
-          return (
-            <TileCell
-              key={`${tile.x}-${tile.y}`}
-              tile={tile}
-              clickable={clickable}
-              onClick={() => handleTileClick(tile.x, tile.y)}
-            />
-          );
-        })}
-      </div>
-
-      <BuildPanel
-        selected={selectedKind}
-        onSelect={setSelectedKind}
-        disabled={pending}
-        resources={state.resources}
+    <>
+      <HexBoard
+        state={state}
+        clickableTileKey={isClickable}
+        onTileClick={handleTileClick}
       />
 
-      <div className="h-4 text-xs italic font-serif text-blood/80">
-        {actionError ?? " "}
+      <div className="pointer-events-none absolute inset-x-0 top-20 z-10 flex justify-center px-6">
+        <div className="pointer-events-auto">
+          <ResourcePanel state={state} />
+        </div>
       </div>
-    </div>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-8 z-10 flex flex-col items-center gap-3 px-6">
+        <div className="pointer-events-auto">
+          <BuildPanel
+            selected={selectedKind}
+            onSelect={setSelectedKind}
+            disabled={pending}
+            resources={state.resources}
+          />
+        </div>
+        <div className="h-4 text-xs italic font-serif text-blood/80">
+          {actionError ?? " "}
+        </div>
+      </div>
+    </>
   );
 }
