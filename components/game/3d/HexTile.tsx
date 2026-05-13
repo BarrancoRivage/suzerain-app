@@ -13,13 +13,14 @@ import {
   HexWaterTile,
   HillsDecor,
   MineModel,
+  WaterDecor,
 } from "./models/Models";
 
 // Tuiles jouables : on reste TOUJOURS au-dessus du sol périphérique (jamais
-// de tuile enterrée). baseline = (reliefNoise + 1) * 0.06, soit ~0 à ~12 cm
-// au-dessus du grass-top de référence. Le sol périphérique va beaucoup plus
-// haut (40 cm) en empruntant la même fonction `reliefNoise`.
-const TILE_RELIEF_AMPLITUDE = 0.06;
+// de tuile enterrée). baseline = (reliefNoise + 1) * 0.15, soit ~0 à ~30 cm
+// au-dessus du grass-top de référence. Le sol périphérique va plus haut
+// encore (80 cm) en empruntant la même fonction `reliefNoise`.
+const TILE_RELIEF_AMPLITUDE = 0.15;
 
 type Props = {
   tile: Tile;
@@ -75,6 +76,7 @@ export function HexTile({ tile, clickable, onClick }: Props) {
           <TopDressing tile={tile} />
         </group>
       )}
+      {tile.biome === "water" && <WaterTopDressing tile={tile} />}
     </group>
   );
 }
@@ -91,6 +93,21 @@ function TopDressing({ tile }: { tile: Tile }) {
 
   if (tile.biome === "forest") return <ForestDecor seed={seed} />;
   if (tile.biome === "hill") return <HillsDecor seed={seed} />;
+  return null;
+}
+
+// ~40 % des tuiles d'eau reçoivent un nénuphar / roseau. Posé sur la surface
+// de l'eau (Y = 0 dans le repère du HexTile, qui est aussi le top de la
+// tuile water après son raise interne).
+function WaterTopDressing({ tile }: { tile: { q: number; r: number } }) {
+  const seed = hashCoord(tile.q, tile.r);
+  if (seed % 5 < 2) {
+    return (
+      <group position={[0, 0, 0]} scale={0.55}>
+        <WaterDecor seed={seed} />
+      </group>
+    );
+  }
   return null;
 }
 

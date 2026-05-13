@@ -26,11 +26,20 @@ const PATHS = {
   forestMedium: "/models/kaykit/nature/trees_A_medium.gltf",
   forestLarge: "/models/kaykit/nature/trees_A_large.gltf",
   hillsA: "/models/kaykit/nature/hills_A.gltf",
+  hillsATrees: "/models/kaykit/nature/hills_A_trees.gltf",
   hillsB: "/models/kaykit/nature/hills_B.gltf",
+  hillsBTrees: "/models/kaykit/nature/hills_B_trees.gltf",
   hillsC: "/models/kaykit/nature/hills_C.gltf",
+  hillsCTrees: "/models/kaykit/nature/hills_C_trees.gltf",
+
+  // Décors aquatiques (posés sur les tuiles water)
+  waterlilyA: "/models/kaykit/nature/waterlily_A.gltf",
+  waterlilyB: "/models/kaykit/nature/waterlily_B.gltf",
+  waterplantA: "/models/kaykit/nature/waterplant_A.gltf",
 
   // Décors standalone (placés sur le sol périphérique, hors hex grid)
   treeSingleA: "/models/kaykit/nature/tree_single_A.gltf",
+  hillSingleA: "/models/kaykit/nature/hill_single_A.gltf",
   rockSingleB: "/models/kaykit/nature/rock_single_B.gltf",
   rockSingleC: "/models/kaykit/nature/rock_single_C.gltf",
   rockSingleD: "/models/kaykit/nature/rock_single_D.gltf",
@@ -95,10 +104,6 @@ export function HexWaterTile() {
 
 // --- Décors de biome (posés SUR la tuile hex_grass). ---
 
-// On privilégie les variantes les plus petites pour ne pas saturer la tuile :
-// trees_A_small et hills_B/C lisent comme « biome forêt/colline » sans
-// remplir tout l'hex. trees_A_medium reste utilisable de temps en temps
-// pour la variété ; trees_A_large évité, c'était trop dense.
 const FOREST_TILE_PATHS = [
   PATHS.forestSmall,
   PATHS.forestSmall,
@@ -110,10 +115,32 @@ export function ForestDecor({ seed }: { seed: number }) {
   return <KayKit path={path} />;
 }
 
-const HILLS_PATHS = [PATHS.hillsB, PATHS.hillsC] as const;
+// Rotation sur toutes les variantes hills (avec et sans trees) pour de la
+// variété — la version `_trees` rend les collines plus reconnaissables.
+const HILLS_PATHS = [
+  PATHS.hillsA,
+  PATHS.hillsATrees,
+  PATHS.hillsB,
+  PATHS.hillsBTrees,
+  PATHS.hillsC,
+  PATHS.hillsCTrees,
+] as const;
 
 export function HillsDecor({ seed }: { seed: number }) {
   const path = HILLS_PATHS[Math.abs(seed) % HILLS_PATHS.length];
+  return <KayKit path={path} />;
+}
+
+// Décor optionnel posé sur une tuile water (nénuphars, roseaux). Probabilité
+// faible — pas toutes les tuiles d'eau ont du décor.
+const WATER_DECOR_PATHS = [
+  PATHS.waterlilyA,
+  PATHS.waterlilyB,
+  PATHS.waterplantA,
+] as const;
+
+export function WaterDecor({ seed }: { seed: number }) {
+  const path = WATER_DECOR_PATHS[Math.abs(seed) % WATER_DECOR_PATHS.length];
   return <KayKit path={path} />;
 }
 

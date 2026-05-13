@@ -25,10 +25,9 @@ const GROUND_SEGMENTS = 160;
 // marge de 1.5 avant que le sol commence à monter.
 const PLAYABLE_FLAT_RADIUS = 12;
 const RAMP_END = 15.0;
-// Relief atténué : on était à 1.0 m d'amplitude full → trop chaotique
-// (chaque sommet de mesh formait un pic visible). 0.4 m donne des
-// ondulations douces qui se confondent avec les bosses du terrain KayKit.
-const RELIEF_AMPLITUDE = 0.4;
+// Relief : 80 cm d'amplitude. Combiné aux fréquences basses de reliefNoise,
+// donne des ondulations marquées (collines visibles) sans pics aigus.
+const RELIEF_AMPLITUDE = 0.8;
 
 const DECOR_INNER = 13.5;
 const DECOR_OUTER_NEAR = 22;
