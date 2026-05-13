@@ -23,8 +23,6 @@ const PATHS = {
   mineSupport: "/models/dungeon/wood-support.glb",
   mineStructure: "/models/dungeon/wood-structure.glb",
   mineOpening: "/models/dungeon/wall-opening.glb",
-  mineRocks: "/models/dungeon/rocks.glb",
-  mineBarrel: "/models/dungeon/barrel.glb",
   treeDefault: "/models/nature/tree_default.glb",
   treeOak: "/models/nature/tree_oak.glb",
   treeFat: "/models/nature/tree_fat.glb",
@@ -55,8 +53,6 @@ const MATERIAL_OVERRIDES: Readonly<Record<string, Override>> = {
   [PATHS.mineSupport]: "#5C3F22",
   [PATHS.mineStructure]: "#5C3F22",
   [PATHS.mineOpening]: "#8B7F70",
-  [PATHS.mineRocks]: "#A09080",
-  [PATHS.mineBarrel]: "#6E4F2C",
 
   // Nature Kit — recoloration du feuillage teal Kenney vers du vert naturel.
   // Le nom du matériau « leaves » / « leaf » dans les glb correspond à la
@@ -182,23 +178,23 @@ export function FarmModel() {
   );
 }
 
-const MINE_SCALE = 0.28;
+// Mine : composition resserrée — ouverture (socle pierre) + 2 supports en bois
+// + linteau. On a viré le tas de rochers (offset +1.2 en X) et le tonneau
+// (-1.1 en X) qui débordaient sur les tuiles adjacentes même avec scale 0.28
+// (le `rocks.glb` a une taille intrinsèque ~1 unité qui s'ajoute à l'offset).
+const MINE_SCALE = 0.24;
 
 export function MineModel() {
   const support1 = useClonedScene(PATHS.mineSupport);
   const support2 = useClonedScene(PATHS.mineSupport);
   const structure = useClonedScene(PATHS.mineStructure);
   const opening = useClonedScene(PATHS.mineOpening);
-  const rocks = useClonedScene(PATHS.mineRocks);
-  const barrel = useClonedScene(PATHS.mineBarrel);
   return (
     <group scale={MINE_SCALE}>
       <primitive object={opening} position={[0, 0, 0]} />
-      <primitive object={support1} position={[-0.45, 0, 0.3]} />
-      <primitive object={support2} position={[0.45, 0, 0.3]} />
-      <primitive object={structure} position={[0, 0.95, 0.3]} />
-      <primitive object={rocks} position={[1.2, 0, 0.6]} />
-      <primitive object={barrel} position={[-1.1, 0, 0.5]} scale={0.7} />
+      <primitive object={support1} position={[-0.45, 0, 0.2]} />
+      <primitive object={support2} position={[0.45, 0, 0.2]} />
+      <primitive object={structure} position={[0, 0.95, 0.2]} />
     </group>
   );
 }
