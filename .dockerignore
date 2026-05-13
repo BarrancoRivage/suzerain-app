@@ -1,0 +1,34 @@
+# Dépendances et artefacts de build : recréés dans l'image
+node_modules
+.next
+out
+build
+coverage
+
+# Git / éditeur
+.git
+.gitignore
+.idea
+.vscode
+*.swp
+*.swo
+
+# Secrets : injectés à l'exécution via env_file, jamais dans l'image
+.env
+.env.*
+!.env.example
+.vercel
+
+# OS / logs
+.DS_Store
+Thumbs.db
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Docker / docs : inutiles dans le contexte de build
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+README.md
