@@ -24,8 +24,25 @@ function getPool(): Pool {
     );
   }
 
-  cachedPool = new Pool({ connectionString: url, max: 5 });
+  cachedPool = new Pool({ connectionString: url, max: 5, ssl: resolveSsl(url) });
   return cachedPool;
+}
+
+// Postgres local (compose) : pas de SSL. Tout host distant (Supabase pooler, etc.) :
+// TLS activé mais sans vérification de chaîne — le cert du pooler Supabase est
+// signé par leur CA, absente du bundle CA Node par défaut, ce qui fait échouer
+// la validation stricte ("self-signed certificate in certificate chain"). La
+// connexion reste chiffrée ; l'auth user/pwd reste l'unique gate d'accès.
+function resolveSsl(url: string): false | { rejectUnauthorized: boolean } {
+  try {
+    const host = new URL(url).hostname;
+    if (host === "postgres" || host === "localhost" || host === "127.0.0.1") {
+      return false;
+    }
+  } catch {
+    // URL malformée : on laisse pg lever une erreur explicite à la connexion.
+  }
+  return { rejectUnauthorized: false };
 }
 
 export async function loadState(playerId: string): Promise<GameState | null> {
