@@ -5,6 +5,14 @@ export type ResourceKind = "grain";
 
 export type BuildingKind = "farm";
 
+export type BiomeKind =
+  | "grass"
+  | "grass-flower"
+  | "grass-stone"
+  | "path"
+  | "water"
+  | "tree";
+
 export type Building = {
   kind: BuildingKind;
   placedAt: number;

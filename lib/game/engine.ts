@@ -1,3 +1,4 @@
+import { biomeAt, isBuildable } from "./biome";
 import { BUILDINGS } from "./buildings";
 import {
   GRID_SIZE,
@@ -61,6 +62,13 @@ export function placeBuilding(
   const tile = state.tiles[index];
   if (tile.building !== null) {
     throw new GameError("TILE_OCCUPIED", "Cette tuile est déjà bâtie.");
+  }
+
+  if (!isBuildable(biomeAt(state.playerId, x, y))) {
+    throw new GameError(
+      "BIOME_NOT_BUILDABLE",
+      "Cette parcelle ne peut accueillir de bâtiment.",
+    );
   }
 
   const def = BUILDINGS[kind];
