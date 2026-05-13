@@ -7,9 +7,6 @@ import type { Biome } from "@/lib/game/types";
 
 type Props = { biome: Biome; seed: number };
 
-// Décor passif d'une tuile (arbres, rochers). Posé seulement si la tuile n'a
-// pas de bâtiment ; les positions sont seedées par (q, r) pour rester stables
-// d'une frame à l'autre.
 export function BiomeDecor({ biome, seed }: Props) {
   const items = useMemo(() => buildItems(biome, seed), [biome, seed]);
   return <>{items}</>;
@@ -41,7 +38,6 @@ function buildItems(biome: Biome, seed: number): React.ReactElement[] {
       />
     ));
   }
-  // Plaine : quelques touffes d'herbe / fleurs très basses
   if (biome === "plain" && rng() < 0.6) {
     return [
       <GrassTuft
@@ -54,8 +50,9 @@ function buildItems(biome: Biome, seed: number): React.ReactElement[] {
   return [];
 }
 
-// Arbre feuillu : tronc + 3 couches de feuillage de teintes différentes,
-// plus un peu de bruit sur la rotation/taille pour casser la régularité.
+// Arbre : tronc + couronne volumétrique = grappe de 5-6 icosaèdres faiblement
+// scalés et imbriqués. Donne une silhouette ronde « feuillue », loin du cône
+// stacké classique. Coloration aléatoire dans une palette verte assortie.
 function Tree({
   x,
   z,
@@ -68,29 +65,41 @@ function Tree({
   seed: number;
 }) {
   const rng = mulberry32(seed);
-  const trunkH = 0.32 + rng() * 0.1;
-  const foliageBaseR = 0.27 + rng() * 0.05;
-  const foliageTint = pickTreeTint(rng);
+  const trunkH = 0.34 + rng() * 0.1;
+  const palette = TREE_PALETTES[Math.floor(rng() * TREE_PALETTES.length)];
+
+  const blobs = useMemo(() => {
+    const rng2 = mulberry32(seed ^ 0xa1);
+    const count = 5 + Math.floor(rng2() * 2);
+    return Array.from({ length: count }, (_, i) => ({
+      x: (rng2() - 0.5) * 0.32,
+      y: (rng2() - 0.4) * 0.28,
+      z: (rng2() - 0.5) * 0.32,
+      s: 0.22 + rng2() * 0.1,
+      color: palette[i % palette.length],
+    }));
+  }, [seed, palette]);
+
   return (
     <group position={[x, 0, z]} scale={scale} rotation={[0, rng() * Math.PI, 0]}>
-      {/* Tronc */}
       <mesh position={[0, trunkH / 2, 0]} castShadow>
         <cylinderGeometry args={[0.05, 0.08, trunkH, 7]} />
         <meshStandardMaterial color="#3F2D1F" roughness={0.95} />
       </mesh>
-      {/* Feuillage : 3 couches coniques empilées avec léger overshoot */}
-      <mesh position={[0, trunkH + 0.18, 0]} castShadow>
-        <coneGeometry args={[foliageBaseR, 0.42, 9]} />
-        <meshStandardMaterial color={foliageTint[0]} roughness={0.85} flatShading />
-      </mesh>
-      <mesh position={[0, trunkH + 0.42, 0]} castShadow>
-        <coneGeometry args={[foliageBaseR * 0.78, 0.4, 9]} />
-        <meshStandardMaterial color={foliageTint[1]} roughness={0.85} flatShading />
-      </mesh>
-      <mesh position={[0, trunkH + 0.62, 0]} castShadow>
-        <coneGeometry args={[foliageBaseR * 0.55, 0.32, 9]} />
-        <meshStandardMaterial color={foliageTint[2]} roughness={0.85} flatShading />
-      </mesh>
+      <group position={[0, trunkH + 0.2, 0]}>
+        {blobs.map((b, i) => (
+          <mesh
+            key={i}
+            position={[b.x, b.y, b.z]}
+            scale={b.s}
+            castShadow
+            receiveShadow
+          >
+            <icosahedronGeometry args={[1, 1]} />
+            <meshStandardMaterial color={b.color} roughness={0.85} flatShading />
+          </mesh>
+        ))}
+      </group>
     </group>
   );
 }
@@ -101,12 +110,10 @@ const TREE_PALETTES: ReadonlyArray<readonly [string, string, string]> = [
   ["#2D4324", "#3E5C32", "#587442"],
 ];
 
-function pickTreeTint(rng: () => number): readonly [string, string, string] {
-  return TREE_PALETTES[Math.floor(rng() * TREE_PALETTES.length)];
-}
-
-// Rocher : icosaèdre subdivisé avec déplacement de bruit sur chaque vertex.
-// Donne un volume irrégulier crédible sans recourir à un asset.
+// Rocher : icosaèdre avec léger déplacement RADIAL (chaque vertex est étiré
+// d'un facteur 0.92-1.08 le long de sa direction depuis le centre). Préserve
+// la topologie convexe et évite le rendu « cassé » qu'on avait avec un
+// déplacement per-axe indépendant.
 function Rock({
   x,
   z,
@@ -118,7 +125,7 @@ function Rock({
   scale: number;
   seed: number;
 }) {
-  const geometry = useMemo(() => buildRockGeometry(seed), [seed]);
+  const geometry = useMemo(() => buildRockGeometry(seed, 0.18), [seed]);
   return (
     <mesh
       position={[x, 0.11 * scale, z]}
@@ -133,22 +140,24 @@ function Rock({
   );
 }
 
-function buildRockGeometry(seed: number) {
-  const geo = new IcosahedronGeometry(0.18, 1);
+export function buildRockGeometry(seed: number, radius: number) {
+  const geo = new IcosahedronGeometry(radius, 1);
   const positions = geo.attributes.position;
   const rng = mulberry32(seed);
   for (let i = 0; i < positions.count; i++) {
-    const offset = (rng() - 0.5) * 0.12;
-    positions.setX(i, positions.getX(i) + (rng() - 0.5) * 0.05);
-    positions.setY(i, positions.getY(i) + offset);
-    positions.setZ(i, positions.getZ(i) + (rng() - 0.5) * 0.05);
+    const factor = 0.92 + rng() * 0.16;
+    positions.setXYZ(
+      i,
+      positions.getX(i) * factor,
+      positions.getY(i) * factor,
+      positions.getZ(i) * factor,
+    );
   }
   positions.needsUpdate = true;
   geo.computeVertexNormals();
   return geo;
 }
 
-// Touffe d'herbe : quelques petits cônes/quads inclinés pour suggérer la prairie.
 function GrassTuft({ x, z }: { x: number; z: number }) {
   return (
     <group position={[x, 0, z]}>

@@ -189,6 +189,12 @@ function ForestCluster({ seed }: { seed: number }) {
   );
 }
 
+const BIG_TREE_PALETTES: ReadonlyArray<readonly [string, string, string]> = [
+  ["#1F3D21", "#2F5232", "#406841"],
+  ["#234027", "#345A38", "#467548"],
+  ["#1B3320", "#2A4828", "#3F6438"],
+];
+
 function BigTree({
   x,
   z,
@@ -201,30 +207,44 @@ function BigTree({
   seed: number;
 }) {
   const rng = mulberry32(seed);
-  const trunkH = 0.4 + rng() * 0.15;
-  const palette = [
-    ["#1F3D21", "#2F5232", "#406841"],
-    ["#234027", "#345A38", "#467548"],
-    ["#1B3320", "#2A4828", "#3F6438"],
-  ][Math.floor(rng() * 3)];
+  const trunkH = 0.45 + rng() * 0.18;
+  const palette = BIG_TREE_PALETTES[Math.floor(rng() * BIG_TREE_PALETTES.length)];
+  // Couronne volumétrique : 6 à 8 icosaèdres imbriqués.
+  const blobs = useMemo(() => {
+    const rng2 = mulberry32(seed ^ 0xb1);
+    const count = 6 + Math.floor(rng2() * 3);
+    return Array.from({ length: count }, (_, i) => ({
+      x: (rng2() - 0.5) * 0.5,
+      y: (rng2() - 0.35) * 0.45,
+      z: (rng2() - 0.5) * 0.5,
+      s: 0.3 + rng2() * 0.14,
+      color: palette[i % palette.length],
+    }));
+  }, [seed, palette]);
   return (
     <group position={[x, 0, z]} scale={scale} rotation={[0, rng() * Math.PI, 0]}>
       <mesh position={[0, trunkH / 2, 0]} castShadow>
         <cylinderGeometry args={[0.07, 0.1, trunkH, 7]} />
         <meshStandardMaterial color="#332218" roughness={0.95} />
       </mesh>
-      <mesh position={[0, trunkH + 0.22, 0]} castShadow>
-        <coneGeometry args={[0.34, 0.55, 9]} />
-        <meshStandardMaterial color={palette[0]} roughness={0.85} flatShading />
-      </mesh>
-      <mesh position={[0, trunkH + 0.5, 0]} castShadow>
-        <coneGeometry args={[0.26, 0.5, 9]} />
-        <meshStandardMaterial color={palette[1]} roughness={0.85} flatShading />
-      </mesh>
-      <mesh position={[0, trunkH + 0.75, 0]} castShadow>
-        <coneGeometry args={[0.16, 0.4, 9]} />
-        <meshStandardMaterial color={palette[2]} roughness={0.85} flatShading />
-      </mesh>
+      <group position={[0, trunkH + 0.28, 0]}>
+        {blobs.map((b, i) => (
+          <mesh
+            key={i}
+            position={[b.x, b.y, b.z]}
+            scale={b.s}
+            castShadow
+            receiveShadow
+          >
+            <icosahedronGeometry args={[1, 1]} />
+            <meshStandardMaterial
+              color={b.color}
+              roughness={0.85}
+              flatShading
+            />
+          </mesh>
+        ))}
+      </group>
     </group>
   );
 }
@@ -261,14 +281,20 @@ function BigRock({
   seed: number;
   rot: number;
 }) {
+  // Déplacement radial uniforme (cf. BiomeDecor.buildRockGeometry) — préserve
+  // la topologie convexe, pas d'auto-intersection de triangles.
   const geometry = useMemo(() => {
     const geo = new IcosahedronGeometry(0.42, 1);
     const positions = geo.attributes.position;
     const rng = mulberry32(seed);
     for (let i = 0; i < positions.count; i++) {
-      positions.setX(i, positions.getX(i) + (rng() - 0.5) * 0.15);
-      positions.setY(i, positions.getY(i) + (rng() - 0.5) * 0.18);
-      positions.setZ(i, positions.getZ(i) + (rng() - 0.5) * 0.15);
+      const factor = 0.88 + rng() * 0.22;
+      positions.setXYZ(
+        i,
+        positions.getX(i) * factor,
+        positions.getY(i) * factor,
+        positions.getZ(i) * factor,
+      );
     }
     positions.needsUpdate = true;
     geo.computeVertexNormals();

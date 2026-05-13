@@ -9,96 +9,61 @@ export function BuildingMesh({ kind }: Props) {
   return <MineMesh />;
 }
 
-// Ferme : chaumière médiévale en colombages. Plusieurs meshes pour donner
-// du relief et de la lisibilité — murs torchis, toit de chaume, cheminée
-// en pierre, porte sombre. Tout reste sub-poly mais le shading PBR rend
-// les volumes vivants.
+// Ferme : chaumière simple, lisible. Murs torchis, toit en bâtière (prisme
+// triangulaire correctement orienté apex vers le haut), cheminée pierre, porte.
+const WALL_W = 0.7;
+const WALL_H = 0.32;
+const WALL_D = 0.78;
+const ROOF_R = 0.36;
+const ROOF_LEN = WALL_D + 0.12;
+
 function FarmMesh() {
   return (
     <group>
       {/* Murs (torchis crème) */}
-      <mesh position={[0, 0.18, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.62, 0.36, 0.74]} />
+      <mesh position={[0, WALL_H / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[WALL_W, WALL_H, WALL_D]} />
         <meshStandardMaterial color="#E8D5A8" roughness={0.92} />
       </mesh>
 
-      {/* Poutres de colombage horizontales (4 traverses sombres) */}
-      <BeamRing y={0.05} />
-      <BeamRing y={0.34} />
-
-      {/* Poutres verticales aux coins */}
-      <CornerPosts />
-
-      {/* Toit de chaume — deux pans inclinés en CylinderGeometry tronqué */}
-      <mesh position={[0, 0.55, 0]} rotation={[0, Math.PI / 2, 0]} castShadow>
-        <cylinderGeometry args={[0.43, 0.43, 0.78, 3, 1, false, 0, Math.PI]} />
+      {/* Toit en bâtière : 3-sided cylinder, axe original Y → couché en Z par
+          rotation -π/2 autour de X. Apex monte vers +Y, base du triangle
+          s'aligne sur le haut des murs. */}
+      <mesh
+        position={[0, WALL_H + ROOF_R / 2, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        castShadow
+        receiveShadow
+      >
+        <cylinderGeometry args={[ROOF_R, ROOF_R, ROOF_LEN, 3]} />
         <meshStandardMaterial color="#7E4B2A" roughness={0.95} flatShading />
       </mesh>
 
-      {/* Cheminée pierre */}
-      <mesh position={[0.16, 0.65, -0.18]} castShadow>
-        <boxGeometry args={[0.11, 0.32, 0.11]} />
+      {/* Cheminée pierre, posée sur le toit côté arrière */}
+      <mesh position={[0.18, WALL_H + ROOF_R * 0.55, -0.2]} castShadow>
+        <boxGeometry args={[0.09, 0.28, 0.09]} />
         <meshStandardMaterial color="#766657" roughness={1} />
       </mesh>
-      <mesh position={[0.16, 0.82, -0.18]} castShadow>
-        <boxGeometry args={[0.14, 0.04, 0.14]} />
+      <mesh position={[0.18, WALL_H + ROOF_R * 0.9, -0.2]} castShadow>
+        <boxGeometry args={[0.12, 0.04, 0.12]} />
         <meshStandardMaterial color="#5C4E40" roughness={1} />
       </mesh>
 
-      {/* Porte */}
-      <mesh position={[0, 0.13, 0.38]} castShadow>
+      {/* Porte (face +Z) */}
+      <mesh position={[0, 0.12, WALL_D / 2 + 0.001]} castShadow>
         <boxGeometry args={[0.16, 0.22, 0.02]} />
         <meshStandardMaterial color="#4A2E1A" roughness={0.95} />
       </mesh>
 
-      {/* Fenêtre sur le pignon */}
-      <mesh position={[-0.32, 0.22, 0]} castShadow>
-        <boxGeometry args={[0.02, 0.1, 0.12]} />
+      {/* Petite lucarne ronde sur le pignon */}
+      <mesh
+        position={[WALL_W / 2 + 0.001, WALL_H + ROOF_R * 0.3, 0]}
+        rotation={[0, 0, Math.PI / 2]}
+      >
+        <cylinderGeometry args={[0.05, 0.05, 0.01, 12]} />
         <meshStandardMaterial color="#2A2018" roughness={1} />
       </mesh>
     </group>
-  );
-}
-
-function BeamRing({ y }: { y: number }) {
-  return (
-    <group position={[0, y, 0]}>
-      <mesh position={[0, 0, 0.36]}>
-        <boxGeometry args={[0.62, 0.03, 0.03]} />
-        <meshStandardMaterial color="#3A2818" roughness={0.95} />
-      </mesh>
-      <mesh position={[0, 0, -0.36]}>
-        <boxGeometry args={[0.62, 0.03, 0.03]} />
-        <meshStandardMaterial color="#3A2818" roughness={0.95} />
-      </mesh>
-      <mesh position={[0.3, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-        <boxGeometry args={[0.74, 0.03, 0.03]} />
-        <meshStandardMaterial color="#3A2818" roughness={0.95} />
-      </mesh>
-      <mesh position={[-0.3, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-        <boxGeometry args={[0.74, 0.03, 0.03]} />
-        <meshStandardMaterial color="#3A2818" roughness={0.95} />
-      </mesh>
-    </group>
-  );
-}
-
-function CornerPosts() {
-  const positions: ReadonlyArray<readonly [number, number]> = [
-    [0.3, 0.36],
-    [-0.3, 0.36],
-    [0.3, -0.36],
-    [-0.3, -0.36],
-  ];
-  return (
-    <>
-      {positions.map(([x, z], i) => (
-        <mesh key={i} position={[x, 0.18, z]}>
-          <boxGeometry args={[0.04, 0.36, 0.04]} />
-          <meshStandardMaterial color="#3A2818" roughness={0.95} />
-        </mesh>
-      ))}
-    </>
   );
 }
 

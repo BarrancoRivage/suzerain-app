@@ -1,11 +1,10 @@
 "use client";
 
 import { Suspense } from "react";
-import { Environment, OrbitControls, SoftShadows } from "@react-three/drei";
+import { Environment, OrbitControls } from "@react-three/drei";
 import {
   Bloom,
   EffectComposer,
-  N8AO,
   ToneMapping,
   Vignette,
 } from "@react-three/postprocessing";
@@ -30,17 +29,15 @@ export function Scene({ state, clickableTileKey, onTileClick }: Props) {
       <color attach="background" args={["#F5EFE0"]} />
       <fog attach="fog" args={[FOG_COLOR, 20, 38]} />
 
-      {/* Soft contact shadows pour ancrer les volumes sans pénalité GPU énorme. */}
-      <SoftShadows size={28} samples={12} focus={0.6} />
-
-      {/* IBL : <Environment preset="park"> charge un HDR de Poly Haven via CDN.
-          background={false} → on garde notre couleur parchemin, on n'utilise
-          l'environnement que pour l'éclairage indirect des matériaux PBR. */}
+      {/* IBL pour l'éclairage indirect des matériaux PBR. */}
       <Suspense fallback={null}>
-        <Environment preset="park" background={false} environmentIntensity={0.55} />
+        <Environment
+          preset="park"
+          background={false}
+          environmentIntensity={0.55}
+        />
       </Suspense>
 
-      {/* Soleil principal : chaud, position oblique, ombres douces. */}
       <directionalLight
         position={[8, 14, 5]}
         intensity={1.6}
@@ -56,11 +53,7 @@ export function Scene({ state, clickableTileKey, onTileClick }: Props) {
         shadow-bias={-0.0002}
         shadow-normalBias={0.04}
       />
-
-      {/* Lumière de remplissage froide (côté opposé) pour adoucir l'ombre. */}
       <directionalLight position={[-6, 5, -8]} intensity={0.35} color="#A8BAD4" />
-
-      {/* Ambient résiduel : très faible, l'essentiel vient de l'IBL. */}
       <ambientLight intensity={0.18} color="#FFF1D4" />
 
       <Suspense fallback={null}>
@@ -87,28 +80,19 @@ export function Scene({ state, clickableTileKey, onTileClick }: Props) {
         rotateSpeed={0.5}
       />
 
-      {/* Post-processing :
-          - N8AO : occlusion ambiante moderne, donne du contact aux objets.
-          - Bloom : halo léger sur les highlights (neige des sommets, hover).
-          - Vignette : ferme le cadre, fait respirer la scène.
-          - ToneMapping ACES : remappe le HDR vers un sRGB cinéma. */}
-      <EffectComposer multisampling={4} enableNormalPass>
-        <N8AO
-          aoRadius={1.5}
-          intensity={3}
-          aoSamples={16}
-          denoiseSamples={4}
-        />
+      {/* Post-processing léger : Bloom + Vignette + ACES.
+          N8AO et SoftShadows retirés (~50 % du frame budget gagné). */}
+      <EffectComposer multisampling={4}>
         <Bloom
-          intensity={0.32}
-          luminanceThreshold={0.78}
+          intensity={0.28}
+          luminanceThreshold={0.82}
           luminanceSmoothing={0.4}
           mipmapBlur
         />
         <Vignette
           eskil={false}
-          offset={0.18}
-          darkness={0.55}
+          offset={0.2}
+          darkness={0.5}
           blendFunction={BlendFunction.NORMAL}
         />
         <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
