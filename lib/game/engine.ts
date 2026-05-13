@@ -23,7 +23,7 @@ export function createInitialState(playerId: string, now: number): GameState {
     createdAt: now,
     lastTickAt: now,
     tiles,
-    resources: { grain: 0 },
+    resources: emptyResources(),
   };
 }
 
@@ -32,7 +32,7 @@ export function tick(state: GameState, now: number): GameState {
   if (elapsedMs === 0) return state;
 
   const elapsedSeconds = elapsedMs / 1000;
-  const produced: Resources = { grain: 0 };
+  const produced: Resources = emptyResources();
 
   for (const tile of state.tiles) {
     if (tile.building === null) continue;
@@ -96,13 +96,17 @@ export function placeBuilding(
 }
 
 export function productionPerSecond(state: GameState): Resources {
-  const total: Resources = { grain: 0 };
+  const total: Resources = emptyResources();
   for (const tile of state.tiles) {
     if (tile.building === null) continue;
     const def = BUILDINGS[tile.building.kind];
     total[def.produces] += def.ratePerSecond;
   }
   return total;
+}
+
+function emptyResources(): Resources {
+  return { grain: 0, gold: 0 };
 }
 
 function isInsideGrid(x: number, y: number): boolean {
@@ -114,5 +118,8 @@ function tileIndex(x: number, y: number): number {
 }
 
 function addResources(a: Resources, b: Resources): Resources {
-  return { grain: (a.grain ?? 0) + (b.grain ?? 0) };
+  return {
+    grain: a.grain + b.grain,
+    gold: a.gold + b.gold,
+  };
 }

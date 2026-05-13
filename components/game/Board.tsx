@@ -92,6 +92,7 @@ export function Board() {
         selected={selectedKind}
         onSelect={setSelectedKind}
         disabled={pending}
+        resources={state.resources}
       />
 
       <div className="h-4 text-xs italic font-serif text-blood/80">
