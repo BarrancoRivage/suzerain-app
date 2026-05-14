@@ -13,6 +13,8 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import { migrateState } from "../game/engine";
+import { normalizeResources } from "../game/resources";
 import { STATE_VERSION, type GameState, type PlayerSummary } from "../game/types";
 
 let cachedClient: SupabaseClient | null = null;
@@ -49,7 +51,9 @@ export async function loadStateSupabase(
 
   const state = data.state as GameState;
   if (state.version !== STATE_VERSION) return null;
-  return state;
+  // Normalise les ressources : un état sauvegardé avant l'ajout de ressources
+  // ne porte que les anciennes clés — migrateState complète le reste à 0.
+  return migrateState(state);
 }
 
 export async function saveStateSupabase(state: GameState): Promise<void> {
@@ -96,10 +100,12 @@ export async function setPlayerNameSupabase(
 
 export async function listPlayersSupabase(): Promise<PlayerSummary[]> {
   // Pas de FK déclarée entre game_states et players : on récupère les deux
-  // ensembles et on fait la jointure en mémoire.
+  // ensembles et on fait la jointure en mémoire. On charge `state` (et pas
+  // seulement player_id) pour en extraire le prestige — Supabase JS ne fait
+  // pas de JSON-path en select. Acceptable à l'échelle actuelle.
   const client = getClient();
   const [statesRes, playersRes] = await Promise.all([
-    client.from("game_states").select("player_id"),
+    client.from("game_states").select("player_id, state"),
     client.from("players").select("player_id, name"),
   ]);
 
@@ -119,10 +125,17 @@ export async function listPlayersSupabase(): Promise<PlayerSummary[]> {
 
   const summaries: PlayerSummary[] = (statesRes.data ?? []).map((row) => {
     const playerId = row.player_id as string;
-    return { playerId, name: names.get(playerId) ?? null };
+    const resources = normalizeResources((row.state as GameState).resources);
+    return {
+      playerId,
+      name: names.get(playerId) ?? null,
+      prestige: resources.prestige,
+    };
   });
 
+  // Scoreboard : tri par prestige décroissant, départage par nom.
   summaries.sort((a, b) => {
+    if (a.prestige !== b.prestige) return b.prestige - a.prestige;
     if (a.name === null) return b.name === null ? 0 : 1;
     if (b.name === null) return -1;
     return a.name.toLowerCase().localeCompare(b.name.toLowerCase());

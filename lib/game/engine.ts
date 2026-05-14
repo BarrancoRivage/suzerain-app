@@ -6,6 +6,11 @@ import { BUILDINGS } from "./buildings";
 import { buildingRate, isMaxLevel, upgradeCost } from "./config";
 import { isInsideGrid } from "./hex";
 import { buildMap } from "./mapgen";
+import {
+  addResources,
+  emptyResources,
+  normalizeResources,
+} from "./resources";
 import { hashString } from "./rng";
 import {
   GameError,
@@ -183,10 +188,10 @@ export function productionPerSecond(state: GameState): Resources {
   return total;
 }
 
-function emptyResources(): Resources {
-  return { grain: 0, gold: 0 };
-}
-
-function addResources(a: Resources, b: Resources): Resources {
-  return { grain: a.grain + b.grain, gold: a.gold + b.gold };
+// Normalise un état chargé depuis la persistance : complète `resources` avec
+// les clés ajoutées depuis sa dernière sauvegarde (états ne portant que
+// grain/gold). Idempotent. Branché dans les backends DB (loadState*) — un seul
+// point couvre tous les chemins de chargement. Voir normalizeResources.
+export function migrateState(state: GameState): GameState {
+  return { ...state, resources: normalizeResources(state.resources) };
 }

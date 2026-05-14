@@ -29,8 +29,3 @@ export const BUILDINGS: Readonly<Record<BuildingKind, BuildingDef>> =
       } satisfies BuildingDef,
     ]),
   ) as Record<BuildingKind, BuildingDef>;
-
-export const RESOURCE_LABELS: Readonly<Record<ResourceKind, string>> = {
-  grain: "Grain",
-  gold: "Or",
-};
