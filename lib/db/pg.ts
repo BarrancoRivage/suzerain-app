@@ -4,6 +4,7 @@
 
 import { Pool } from "pg";
 
+import { migrateState } from "../game/engine";
 import { STATE_VERSION, type GameState, type PlayerSummary } from "../game/types";
 
 let cachedPool: Pool | null = null;
@@ -58,7 +59,8 @@ export async function loadStatePg(playerId: string): Promise<GameState | null> {
   if (rows.length === 0) return null;
   const state = rows[0].state;
   if (state.version !== STATE_VERSION) return null;
-  return state;
+  // Normalise les ressources d'un état sauvegardé avant l'ajout de ressources.
+  return migrateState(state);
 }
 
 export async function saveStatePg(state: GameState): Promise<void> {
@@ -100,14 +102,24 @@ export async function setPlayerNamePg(
 
 export async function listPlayersPg(): Promise<PlayerSummary[]> {
   await ensurePlayersTable();
+  // Scoreboard : prestige extrait du JSONB en SQL (coalesce → 0 si la clé
+  // n'existe pas encore), tri par prestige décroissant puis par nom.
   const { rows } = await getPool().query<{
     player_id: string;
     name: string | null;
+    prestige: string;
   }>(
-    `select g.player_id, p.name
+    `select g.player_id,
+            p.name,
+            coalesce((g.state -> 'resources' ->> 'prestige')::numeric, 0) as prestige
        from game_states g
        left join players p using (player_id)
-       order by lower(p.name) nulls last, g.player_id`,
+       order by prestige desc, lower(p.name) nulls last, g.player_id`,
   );
-  return rows.map((row) => ({ playerId: row.player_id, name: row.name }));
+  return rows.map((row) => ({
+    playerId: row.player_id,
+    name: row.name,
+    // pg renvoie les `numeric` en string.
+    prestige: Number(row.prestige),
+  }));
 }

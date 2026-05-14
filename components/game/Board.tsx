@@ -21,6 +21,7 @@ import { BuildingPanel } from "./BuildingPanel";
 import { NamePrompt } from "./NamePrompt";
 import { PlayerList } from "./PlayerList";
 import { ResourcePanel } from "./ResourcePanel";
+import { TreasuryModal } from "./TreasuryModal";
 import { ViewingBanner } from "./ViewingBanner";
 
 // Canvas WebGL : importé dynamiquement, ssr:false. Le bundle three+R3F+drei
@@ -55,6 +56,7 @@ export function Board() {
   const [nameError, setNameError] = useState<string | null>(null);
 
   const [namePromptOpen, setNamePromptOpen] = useState(false);
+  const [treasuryOpen, setTreasuryOpen] = useState(false);
   const [selectedKind, setSelectedKind] = useState<BuildingKind | null>(null);
   // Tuile dont le bâtiment est inspecté (panneau latéral). null = aucun.
   const [inspected, setInspected] = useState<{ q: number; r: number } | null>(
@@ -237,7 +239,10 @@ export function Board() {
 
       <div className="pointer-events-none absolute inset-x-0 top-20 z-10 flex justify-center px-6">
         <div className="pointer-events-auto">
-          <ResourcePanel state={activeState} />
+          <ResourcePanel
+            state={activeState}
+            onOpenTreasury={() => setTreasuryOpen(true)}
+          />
         </div>
       </div>
 
@@ -282,6 +287,13 @@ export function Board() {
           pending={pending}
           error={nameError}
           initialName={ownName ?? undefined}
+        />
+      )}
+
+      {treasuryOpen && (
+        <TreasuryModal
+          state={activeState}
+          onClose={() => setTreasuryOpen(false)}
         />
       )}
     </>

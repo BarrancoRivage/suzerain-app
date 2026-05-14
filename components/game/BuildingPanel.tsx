@@ -1,18 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
 import { BUILDINGS } from "@/lib/game/buildings";
 import { buildingRate, isMaxLevel, upgradeCost } from "@/lib/game/config";
-import type {
-  BuildingKind,
-  GameState,
-  Resources,
-  Tile,
-} from "@/lib/game/types";
+import type { BuildingKind, GameState, Tile } from "@/lib/game/types";
 import { canAfford, formatCost } from "./cost";
 import { FarmIcon } from "./icons/FarmIcon";
 import { MineIcon } from "./icons/MineIcon";
+import { useAnimatedResources } from "./useAnimatedResources";
 
 const ICONS: Record<BuildingKind, typeof FarmIcon> = {
   farm: FarmIcon,
@@ -23,20 +17,6 @@ const COLORS: Record<BuildingKind, string> = {
   farm: "text-blood",
   mine: "text-gold",
 };
-
-// Production par seconde de chaque ressource sur le fief — même formule que
-// l'engine (productionPerSecond) et ResourcePanel.
-function computeRates(state: GameState): Resources {
-  const total: Resources = { grain: 0, gold: 0 };
-  for (const tile of state.tiles) {
-    if (tile.building === null) continue;
-    total[BUILDINGS[tile.building.kind].produces] += buildingRate(
-      tile.building.kind,
-      tile.building.level,
-    );
-  }
-  return total;
-}
 
 type Props = {
   tile: Tile;
@@ -60,29 +40,10 @@ export function BuildingPanel({
   onUpgrade,
   onClose,
 }: Props) {
-  // Ressources interpolées en temps réel (même boucle rAF que ResourcePanel) :
+  // Ressources interpolées en temps réel (boucle rAF partagée avec le HUD) :
   // le bouton « Améliorer » se débloque dès que la production atteint le coût,
   // sans attendre un aller-retour serveur.
-  const [liveResources, setLiveResources] = useState<Resources>(
-    state.resources,
-  );
-  const rafRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const rates = computeRates(state);
-    function loop() {
-      const elapsed = (Date.now() - state.lastTickAt) / 1000;
-      setLiveResources({
-        grain: state.resources.grain + rates.grain * elapsed,
-        gold: state.resources.gold + rates.gold * elapsed,
-      });
-      rafRef.current = requestAnimationFrame(loop);
-    }
-    rafRef.current = requestAnimationFrame(loop);
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
-  }, [state]);
+  const { displayed: liveResources } = useAnimatedResources(state);
 
   const building = tile.building;
   if (building === null) return null;

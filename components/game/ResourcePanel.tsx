@@ -1,80 +1,58 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  formatAmount,
+  RESOURCES,
+  resourcesByCategory,
+} from "@/lib/game/resources";
+import type { GameState } from "@/lib/game/types";
+import { ResourceIcon } from "./icons/ResourceIcon";
+import { useAnimatedResources } from "./useAnimatedResources";
 
-import { BUILDINGS, RESOURCE_LABELS } from "@/lib/game/buildings";
-import { buildingRate } from "@/lib/game/config";
-import type { GameState, ResourceKind, Resources } from "@/lib/game/types";
-import { GoldIcon } from "./icons/GoldIcon";
-import { GrainIcon } from "./icons/GrainIcon";
+// HUD compact : barre unique discrète affichant les 7 ressources `primary`
+// (icône + nombre), taux de production au survol, et un bouton ⊞ ouvrant la
+// modale Trésorerie. Le prestige et les ressources secondaires ne sont PAS ici
+// — uniquement dans la modale (et le scoreboard pour le prestige).
+const PRIMARY = resourcesByCategory("primary");
 
-const ICONS: Record<ResourceKind, typeof GrainIcon> = {
-  grain: GrainIcon,
-  gold: GoldIcon,
+type Props = {
+  state: GameState;
+  onOpenTreasury: () => void;
 };
 
-const COLORS: Record<ResourceKind, string> = {
-  grain: "text-blood",
-  gold: "text-gold",
-};
-
-function computeRates(state: GameState): Resources {
-  const total: Resources = { grain: 0, gold: 0 };
-  for (const tile of state.tiles) {
-    if (tile.building === null) continue;
-    const def = BUILDINGS[tile.building.kind];
-    total[def.produces] += buildingRate(
-      tile.building.kind,
-      tile.building.level,
-    );
-  }
-  return total;
-}
-
-type Props = { state: GameState };
-
-export function ResourcePanel({ state }: Props) {
-  const rates = computeRates(state);
-  const [displayed, setDisplayed] = useState<Resources>(state.resources);
-  const rafRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    function loop() {
-      const elapsed = (Date.now() - state.lastTickAt) / 1000;
-      setDisplayed({
-        grain: state.resources.grain + rates.grain * elapsed,
-        gold: state.resources.gold + rates.gold * elapsed,
-      });
-      rafRef.current = requestAnimationFrame(loop);
-    }
-    rafRef.current = requestAnimationFrame(loop);
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
-  }, [state, rates.grain, rates.gold]);
+export function ResourcePanel({ state, onOpenTreasury }: Props) {
+  const { displayed, rates } = useAnimatedResources(state);
 
   return (
-    <div className="flex flex-wrap items-stretch justify-center gap-3">
-      {(Object.keys(RESOURCE_LABELS) as ResourceKind[]).map((kind) => {
-        const Icon = ICONS[kind];
-        const color = COLORS[kind];
+    <div className="flex items-center gap-0.5 rounded-md border border-gold/30 bg-parchment/70 px-2 py-1 backdrop-blur-sm">
+      {PRIMARY.map((kind) => {
+        const def = RESOURCES[kind];
         return (
           <div
             key={kind}
-            className="flex items-center gap-4 rounded-md border border-gold/40 bg-parchment/80 px-5 py-3"
+            className="group relative flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-parchment/80"
           >
-            <Icon className={`w-7 h-7 ${color} pixelated`} />
-            <div className="flex flex-col leading-tight">
-              <span className="font-serif text-3xl tabular-nums text-ink">
-                {displayed[kind].toFixed(1)}
-              </span>
-              <span className="text-[10px] uppercase tracking-widest text-ink/50 font-sans">
-                {RESOURCE_LABELS[kind]} · {rates[kind].toFixed(2)} / s
-              </span>
+            <ResourceIcon
+              kind={kind}
+              className={`h-4 w-4 ${def.tone} pixelated`}
+            />
+            <span className="font-serif text-sm tabular-nums text-ink">
+              {formatAmount(displayed[kind], kind)}
+            </span>
+            <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded border border-gold/40 bg-parchment px-2 py-1 font-sans text-[10px] text-ink/70 shadow-sm group-hover:block">
+              {def.label} · +{rates[kind].toFixed(2)} / s
             </div>
           </div>
         );
       })}
+      <button
+        type="button"
+        onClick={onOpenTreasury}
+        aria-label="Ouvrir la trésorerie"
+        className="ml-1 flex h-6 w-6 items-center justify-center rounded border border-gold/40 font-sans text-sm text-ink/60 transition-colors hover:bg-parchment hover:text-ink"
+      >
+        ⊞
+      </button>
     </div>
   );
 }

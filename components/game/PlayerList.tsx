@@ -2,6 +2,7 @@
 
 import { CrownIcon } from "@/components/CrownIcon";
 import type { PlayerSummary } from "@/lib/game/types";
+import { ResourceIcon } from "./icons/ResourceIcon";
 
 type Props = {
   players: PlayerSummary[];
@@ -36,7 +37,7 @@ export function PlayerList({
             Fiefs du royaume
           </h2>
           <p className="mt-1 font-sans text-[10px] uppercase tracking-widest text-ink/50">
-            {players.length} {players.length > 1 ? "seigneurs" : "seigneur"}
+            Classement par prestige
           </p>
         </div>
 
@@ -46,7 +47,7 @@ export function PlayerList({
               Le royaume est encore désert…
             </li>
           ) : (
-            players.map((player) => {
+            players.map((player, index) => {
               const isOwn = player.playerId === ownPlayerId;
               const isActive = player.playerId === activePlayerId;
               const label = player.name ?? "Anonyme";
@@ -62,6 +63,9 @@ export function PlayerList({
                         : "border-transparent hover:border-gold hover:bg-parchment/70"
                     }`}
                   >
+                    <span className="w-4 shrink-0 text-right font-sans text-[10px] tabular-nums text-ink/40">
+                      {index + 1}
+                    </span>
                     {isOwn ? (
                       <CrownIcon className="pixelated h-3.5 w-3.5 shrink-0 text-gold" />
                     ) : (
@@ -80,16 +84,16 @@ export function PlayerList({
                     >
                       {label}
                     </span>
-                    {isOwn && (
-                      <span className="shrink-0 font-sans text-[10px] uppercase tracking-widest text-gold">
-                        vous
-                      </span>
-                    )}
-                    {isActive && !isOwn && (
-                      <span className="shrink-0 text-blood" aria-hidden="true">
-                        &#9656;
-                      </span>
-                    )}
+                    <span
+                      className="flex shrink-0 items-center gap-0.5 font-sans text-[11px] tabular-nums text-gold"
+                      title={`${player.prestige} de prestige`}
+                    >
+                      <ResourceIcon
+                        kind="prestige"
+                        className="pixelated h-3 w-3"
+                      />
+                      {Math.round(player.prestige)}
+                    </span>
                   </button>
                 </li>
               );

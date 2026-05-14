@@ -1,6 +1,7 @@
 "use client";
 
-import { BUILDINGS, RESOURCE_LABELS } from "@/lib/game/buildings";
+import { BUILDINGS } from "@/lib/game/buildings";
+import { RESOURCE_LABELS } from "@/lib/game/resources";
 import type { BuildingKind, Resources } from "@/lib/game/types";
 import { canAfford, formatCost } from "./cost";
 import { FarmIcon } from "./icons/FarmIcon";

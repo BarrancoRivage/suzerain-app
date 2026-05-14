@@ -1,7 +1,7 @@
 // Helpers partagés pour afficher / vérifier un coût en ressources.
 // Utilisés par BuildPanel (coût de pose) et BuildingPanel (coût d'amélioration).
 
-import { RESOURCE_LABELS } from "@/lib/game/buildings";
+import { RESOURCE_LABELS } from "@/lib/game/resources";
 import type { ResourceKind, Resources } from "@/lib/game/types";
 
 export type Cost = Readonly<Partial<Record<ResourceKind, number>>>;
