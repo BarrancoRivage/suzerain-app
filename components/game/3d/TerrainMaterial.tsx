@@ -144,6 +144,10 @@ export function useTerrainMaterial(): MeshStandardMaterial {
         // weights du splatmap. L'herbe garde la normale géométrique
         // (vec3(0,0,1) en TS) — les variations de l'herbe viennent du noise
         // appliqué à sa couleur, pas d'un bumping de surface.
+        //
+        // Pour le tangent space : three.js ≥ r160 a retiré perturbNormal2Arb.
+        // On reconstruit la TBN à partir des dérivées d'écran (dFdx/dFdy) sur
+        // worldPosition + splatUV, indépendant de la version three.js.
         .replace(
           "#include <normal_fragment_maps>",
           `vec3 nDirt = texture2D(uDirtNormal, splatUV).xyz * 2.0 - 1.0;
@@ -152,17 +156,23 @@ export function useTerrainMaterial(): MeshStandardMaterial {
            vec3 tsNormal = normalize(
              nGrass * splatGrassW + nDirt * splatDirtW + nRock * splatRockW
            );
-           // Reproduit le tbn standard de three.js (sans tangent attribute
-           // explicite, three.js calcule un tangent local au moment du
-           // fragment). On utilise vTBN si dispo, sinon perturbNormal2Arb.
-           #ifdef USE_TANGENT
-             vec3 mappedNormal = normalize(tbn * tsNormal);
-           #else
-             vec3 mappedNormal = perturbNormal2Arb(
-               -vViewPosition, normal, tsNormal, faceDirection
-             );
-           #endif
-           normal = mappedNormal;`,
+
+           // TBN dérivée d'écran (cf. Christian Schüler, "Normal Mapping
+           // Without Precomputed Tangents", 2013). Marche pour tous les
+           // mesh sans tangent attribute explicite.
+           vec3 q0 = dFdx(vTerrainWP);
+           vec3 q1 = dFdy(vTerrainWP);
+           vec2 st0 = dFdx(splatUV);
+           vec2 st1 = dFdy(splatUV);
+           vec3 N = normalize(normal);
+           vec3 q1perp = cross(q1, N);
+           vec3 q0perp = cross(N, q0);
+           vec3 T = q1perp * st0.x + q0perp * st1.x;
+           vec3 B = q1perp * st0.y + q0perp * st1.y;
+           float det = max(dot(T, T), dot(B, B));
+           float scale = det == 0.0 ? 0.0 : inversesqrt(det);
+           mat3 tbnLocal = mat3(T * scale, B * scale, N);
+           normal = normalize(tbnLocal * tsNormal);`,
         );
     };
 
