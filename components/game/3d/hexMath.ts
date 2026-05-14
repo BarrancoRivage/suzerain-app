@@ -2,8 +2,8 @@
 // Référence : https://www.redblobgames.com/grids/hexagons/
 //
 // `HEX_SIZE` = rayon centre → sommet de la tuile dans notre repère monde.
-// Les tuiles KayKit (vertex distance native 2/√3) sont scalées par √3/2
-// pour matcher HEX_SIZE = 1 — cf. KAYKIT_SCALE dans models/Models.tsx.
+// Les tuiles sont maintenant procédurales (CylinderGeometry 6 segments)
+// avec radius = HEX_SIZE — pas de scale conversion nécessaire.
 
 export const HEX_SIZE = 1;
 const SQRT3 = Math.sqrt(3);

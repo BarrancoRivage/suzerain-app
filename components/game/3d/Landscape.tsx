@@ -117,7 +117,7 @@ function DecorObject({ item }: { item: DecorItem }) {
       rotation={[0, item.rotation, 0]}
       scale={item.scale}
     >
-      {item.kind === "tree" && <StandaloneTree />}
+      {item.kind === "tree" && <StandaloneTree seed={item.seed} />}
       {item.kind === "rock" && <StandaloneRock seed={item.seed} />}
       {item.kind === "hill" && <StandaloneHill seed={item.seed} />}
       {item.kind === "mountain" && <StandaloneMountain seed={item.seed} />}

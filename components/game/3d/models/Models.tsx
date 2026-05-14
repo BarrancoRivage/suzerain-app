@@ -1,75 +1,74 @@
 "use client";
 
-import { useMemo } from "react";
-import { Mesh, type Object3D } from "three";
+import { useEffect, useMemo } from "react";
+import {
+  DoubleSide,
+  Mesh,
+  RepeatWrapping,
+  SRGBColorSpace,
+  TextureLoader,
+  type Object3D,
+} from "three";
 import { useGLTF } from "@react-three/drei";
+import { useLoader } from "@react-three/fiber";
 
-// KayKit Medieval Hexagon Pack (CC0, Kay Lousberg). Tous les modèles partagent
-// un atlas unique `hexagons_medieval.png` chargé via URI relative dans les
-// .gltf. Le pack est calibré en pointy-top hex avec vertex distance 2/√3 ;
-// on scale tout par √3/2 ≈ 0.866 pour matcher notre HEX_SIZE = 1.
+import { mulberry32 } from "@/lib/game/rng";
 
-const KAYKIT_SCALE = Math.sqrt(3) / 2;
+// 100 % Quaternius (CC0). KayKit complètement retiré.
+//
+// Stylized Nature MegaKit fournit la végétation et les rochers ;
+// Medieval Village MegaKit fournit les modules de bâtiments (composés
+// à la volée pour chaque ferme / mine) ; Poly Haven `aerial_grass_rock`
+// fournit la texture PBR du dessus des tuiles d'herbe.
 
-const PATHS = {
-  // Tiles (chunk hexagonal avec dirt sides et top texturé)
-  hexGrass: "/models/kaykit/tiles/hex_grass.gltf",
-  hexGrassSlopedLow: "/models/kaykit/tiles/hex_grass_sloped_low.gltf",
-  hexGrassSlopedHigh: "/models/kaykit/tiles/hex_grass_sloped_high.gltf",
-  hexWater: "/models/kaykit/tiles/hex_water.gltf",
-  hexRiverA: "/models/kaykit/tiles/hex_river_A.gltf",
-  hexRiverB: "/models/kaykit/tiles/hex_river_B.gltf",
-  hexRiverC: "/models/kaykit/tiles/hex_river_C.gltf",
-  hexRoadA: "/models/kaykit/tiles/hex_road_A.gltf",
-  hexRoadB: "/models/kaykit/tiles/hex_road_B.gltf",
-  hexRoadC: "/models/kaykit/tiles/hex_road_C.gltf",
+const NATURE = "/assets/stylized-nature/glTF";
+const VILLAGE = "/assets/medieval-village/glTF";
+const TEX_GRASS_DIFF =
+  "/assets/textures/aerial-grass-rock/aerial_grass_rock_diff_4k.jpg";
 
-  // Buildings (faction rouge — cohérent avec la palette `blood` Suzerain)
-  homeA: "/models/kaykit/buildings_red/building_home_A_red.gltf",
-  homeB: "/models/kaykit/buildings_red/building_home_B_red.gltf",
-  mine: "/models/kaykit/buildings_red/building_mine_red.gltf",
+// --- Chemins glTF ---
 
-  // Décors qui se posent SUR une tuile hex_grass (Y commence à 0)
-  forestSmall: "/models/kaykit/nature/trees_A_small.gltf",
-  forestMedium: "/models/kaykit/nature/trees_A_medium.gltf",
-  forestLarge: "/models/kaykit/nature/trees_A_large.gltf",
-  hillsA: "/models/kaykit/nature/hills_A.gltf",
-  hillsATrees: "/models/kaykit/nature/hills_A_trees.gltf",
-  hillsB: "/models/kaykit/nature/hills_B.gltf",
-  hillsBTrees: "/models/kaykit/nature/hills_B_trees.gltf",
-  hillsC: "/models/kaykit/nature/hills_C.gltf",
-  hillsCTrees: "/models/kaykit/nature/hills_C_trees.gltf",
+const COMMON_TREES = [1, 2, 3, 4, 5].map(
+  (n) => `${NATURE}/CommonTree_${n}.gltf`,
+);
+const PINE_TREES = [1, 2, 3, 4, 5].map((n) => `${NATURE}/Pine_${n}.gltf`);
+const DEAD_TREES = [1, 2, 3, 4, 5].map((n) => `${NATURE}/DeadTree_${n}.gltf`);
+const TWISTED_TREES = [1, 2, 3, 4, 5].map(
+  (n) => `${NATURE}/TwistedTree_${n}.gltf`,
+);
+const ROCKS = [1, 2, 3].map((n) => `${NATURE}/Rock_Medium_${n}.gltf`);
+const BUSHES = [
+  `${NATURE}/Bush_Common.gltf`,
+  `${NATURE}/Bush_Common_Flowers.gltf`,
+];
 
-  // Décors aquatiques (posés sur les tuiles water)
-  waterlilyA: "/models/kaykit/nature/waterlily_A.gltf",
-  waterlilyB: "/models/kaykit/nature/waterlily_B.gltf",
-  waterplantA: "/models/kaykit/nature/waterplant_A.gltf",
+const WALL_STRAIGHT = `${VILLAGE}/Wall_Plaster_Straight.gltf`;
+const WALL_DOOR = `${VILLAGE}/Wall_Plaster_Door_Flat.gltf`;
+const FLOOR = `${VILLAGE}/Floor_Brick.gltf`;
+const ROOF = `${VILLAGE}/Roof_Dormer_RoundTile.gltf`;
+const CHIMNEY = `${VILLAGE}/Prop_Chimney.gltf`;
 
-  // Décors standalone (placés sur le sol périphérique, hors hex grid)
-  treeSingleA: "/models/kaykit/nature/tree_single_A.gltf",
-  hillSingleA: "/models/kaykit/nature/hill_single_A.gltf",
-  rockSingleB: "/models/kaykit/nature/rock_single_B.gltf",
-  rockSingleC: "/models/kaykit/nature/rock_single_C.gltf",
-  rockSingleD: "/models/kaykit/nature/rock_single_D.gltf",
-  hillSingleB: "/models/kaykit/nature/hill_single_B.gltf",
-  hillSingleC: "/models/kaykit/nature/hill_single_C.gltf",
+// Preload : tous les modules au module-level pour éviter les Suspense
+// flashs au premier mount de chaque tuile.
+const PRELOAD = [
+  ...COMMON_TREES,
+  ...PINE_TREES,
+  ...DEAD_TREES,
+  ...TWISTED_TREES,
+  ...ROCKS,
+  ...BUSHES,
+  WALL_STRAIGHT,
+  WALL_DOOR,
+  FLOOR,
+  ROOF,
+  CHIMNEY,
+];
+for (const p of PRELOAD) useGLTF.preload(p);
 
-  // Montagnes (footprint hex, posées sur le sol périphérique). Variantes
-  // « _grass_trees » = montagne avec versants boisés ; « _grass » = montagne
-  // partiellement enherbée ; pas de suffixe = montagne pure rocher.
-  mountainA: "/models/kaykit/nature/mountain_A.gltf",
-  mountainAGrass: "/models/kaykit/nature/mountain_A_grass.gltf",
-  mountainAGrassTrees: "/models/kaykit/nature/mountain_A_grass_trees.gltf",
-  mountainB: "/models/kaykit/nature/mountain_B.gltf",
-  mountainBGrass: "/models/kaykit/nature/mountain_B_grass.gltf",
-  mountainBGrassTrees: "/models/kaykit/nature/mountain_B_grass_trees.gltf",
-  mountainC: "/models/kaykit/nature/mountain_C.gltf",
-  mountainCGrass: "/models/kaykit/nature/mountain_C_grass.gltf",
-  mountainCGrassTrees: "/models/kaykit/nature/mountain_C_grass_trees.gltf",
-} as const;
+// --- Helpers ---
 
-Object.values(PATHS).forEach((p) => useGLTF.preload(p));
-
+// Clone profond + activation des shadows en une passe. À mémoiser par
+// instance pour ne pas re-cloner à chaque frame.
 function useClonedScene(path: string): Object3D {
   const { scene } = useGLTF(path);
   return useMemo(() => {
@@ -84,193 +83,263 @@ function useClonedScene(path: string): Object3D {
   }, [scene]);
 }
 
-function KayKit({ path, scale = 1 }: { path: string; scale?: number }) {
-  const scene = useClonedScene(path);
-  return <primitive object={scene} scale={KAYKIT_SCALE * scale} />;
+function useGrassTexture() {
+  const tex = useLoader(TextureLoader, TEX_GRASS_DIFF);
+  useEffect(() => {
+    tex.wrapS = RepeatWrapping;
+    tex.wrapT = RepeatWrapping;
+    // ~1 répétition tous les ~2.5 m, donne du grain sans visibilité des joints.
+    tex.repeat.set(0.4, 0.4);
+    tex.colorSpace = SRGBColorSpace;
+  }, [tex]);
+  return tex;
 }
 
-// --- Tuile de base : chunk hex avec grass top + dirt sides. ---
+// --- Tuiles hex procédurales ---
+//
+// On a abandonné les .glb KayKit. Chaque tuile = un prisme hexagonal très
+// fin construit avec CylinderGeometry(R, R, h, 6). Le dessus utilise la
+// texture grass PBR Poly Haven, les flancs un brun terreux uni. Top à Y=0
+// dans le repère de la tuile — le décor / les bâtiments s'empilent dessus.
+
+const TILE_HEIGHT = 0.5;
+const DIRT_SIDE_COLOR = "#8C6F4A";
+const WATER_TOP_COLOR = "#4A8AB8";
+const WATER_DROP = 0.08; // surface d'eau légèrement enfoncée vs grass top
 
 export function HexGrassTile() {
-  return <KayKit path={PATHS.hexGrass} />;
+  const grass = useGrassTexture();
+  return (
+    <group>
+      <mesh position={[0, -TILE_HEIGHT / 2, 0]} receiveShadow castShadow>
+        <cylinderGeometry args={[1, 1, TILE_HEIGHT, 6, 1, true]} />
+        <meshStandardMaterial
+          color={DIRT_SIDE_COLOR}
+          roughness={1}
+          side={DoubleSide}
+        />
+      </mesh>
+      <mesh
+        position={[0, 0, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+      >
+        <circleGeometry args={[1, 6]} />
+        <meshStandardMaterial map={grass} roughness={0.92} />
+      </mesh>
+    </group>
+  );
 }
-
-// Tuile d'eau : le modèle KayKit a son top à Y=-0.2 (avant scale), soit
-// -0.173 après scale 0.866 → la surface se retrouve sous le ground plane
-// (Y=-0.05) et la tuile est invisible. On la remonte de 0.173 pour que la
-// surface d'eau coïncide avec le top des tuiles grass (Y=0 dans le repère
-// du group HexTile).
-const HEX_WATER_RAISE = 0.173;
 
 export function HexWaterTile() {
   return (
-    <group position={[0, HEX_WATER_RAISE, 0]}>
-      <KayKit path={PATHS.hexWater} />
+    <group>
+      <mesh position={[0, -TILE_HEIGHT / 2, 0]} receiveShadow>
+        <cylinderGeometry args={[1, 1, TILE_HEIGHT, 6, 1, true]} />
+        <meshStandardMaterial
+          color={DIRT_SIDE_COLOR}
+          roughness={1}
+          side={DoubleSide}
+        />
+      </mesh>
+      <mesh
+        position={[0, -WATER_DROP, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+      >
+        <circleGeometry args={[1, 6]} />
+        <meshStandardMaterial
+          color={WATER_TOP_COLOR}
+          roughness={0.35}
+          metalness={0.05}
+        />
+      </mesh>
     </group>
   );
 }
 
-// Choix de la variante KayKit (A=droite, B=60°, C=120°) et de la rotation Y
-// selon les arêtes d'entrée/sortie du chemin. Convention :
-//   - HEX_DIRECTIONS[i] donne le vecteur axial vers le voisin par l'arête i,
-//     à l'angle world = i * 60° (CCW depuis +X)
-//   - Default A : in=3 out=0 → axis +X. Rotation `inEdge * 60°` aligne in→inEdge.
-//   - Default B (60° courbe CCW) : in=0 out=1. Rotation `inEdge * 60°`.
-//   - Default C (120° courbe CCW) : in=0 out=2. Rotation `inEdge * 60°`.
-//   - Pour une courbe CW (diff = -1 mod 6 = 5, ou -2 mod 6 = 4), on inverse
-//     in et out — la courbe est symétrique en termes de flux visuel.
-//
-// Si l'orientation par défaut de KayKit diffère (e.g. A naturel sur axis Z),
-// il suffira d'ajouter un offset constant par variante.
-
-const HEX_60 = Math.PI / 3;
-
-type Variant = "A" | "B" | "C";
-
-function classifyPath(
-  inEdge: number,
-  outEdge: number,
-): { variant: Variant; rotation: number } {
-  const diff = ((outEdge - inEdge) % 6 + 6) % 6;
-  switch (diff) {
-    case 3:
-      return { variant: "A", rotation: inEdge * HEX_60 };
-    case 1:
-      return { variant: "B", rotation: inEdge * HEX_60 };
-    case 5: // courbe miroir : swap in/out
-      return { variant: "B", rotation: outEdge * HEX_60 };
-    case 2:
-      return { variant: "C", rotation: inEdge * HEX_60 };
-    case 4:
-      return { variant: "C", rotation: outEdge * HEX_60 };
-    default:
-      // diff = 0 ne devrait pas arriver (in === out) ; on retombe sur A.
-      return { variant: "A", rotation: 0 };
-  }
-}
-
-const RIVER_VARIANT_PATH: Record<Variant, string> = {
-  A: PATHS.hexRiverA,
-  B: PATHS.hexRiverB,
-  C: PATHS.hexRiverC,
-};
-
-const ROAD_VARIANT_PATH: Record<Variant, string> = {
-  A: PATHS.hexRoadA,
-  B: PATHS.hexRoadB,
-  C: PATHS.hexRoadC,
-};
-
+// V1 : rivières et routes rendues comme les tuiles de base. Les données
+// d'orientation (inEdge, outEdge) restent en state — V2 ajoutera des
+// shaders pour dessiner le tracé du cours d'eau et du chemin.
 type PathProps = { inEdge: number; outEdge: number };
 
-export function HexRiverTile({ inEdge, outEdge }: PathProps) {
-  const { variant, rotation } = classifyPath(inEdge, outEdge);
-  return (
-    <group rotation={[0, rotation, 0]}>
-      <KayKit path={RIVER_VARIANT_PATH[variant]} />
-    </group>
-  );
+export function HexRiverTile(_props: PathProps) {
+  return <HexWaterTile />;
 }
 
-export function HexRoadTile({ inEdge, outEdge }: PathProps) {
-  const { variant, rotation } = classifyPath(inEdge, outEdge);
-  return (
-    <group rotation={[0, rotation, 0]}>
-      <KayKit path={ROAD_VARIANT_PATH[variant]} />
-    </group>
-  );
+export function HexRoadTile(_props: PathProps) {
+  return <HexGrassTile />;
 }
 
-// --- Décors de biome (posés SUR la tuile hex_grass). ---
+// --- Décor de biome (sur tuile jouable) ---
 
-const FOREST_TILE_PATHS = [
-  PATHS.forestSmall,
-  PATHS.forestSmall,
-  PATHS.forestMedium,
-] as const;
+const FOREST_TREE_PATHS = [...COMMON_TREES, ...PINE_TREES] as const;
+const FOREST_TREE_SCALE = 0.18;
 
 export function ForestDecor({ seed }: { seed: number }) {
-  const path = FOREST_TILE_PATHS[Math.abs(seed) % FOREST_TILE_PATHS.length];
-  return <KayKit path={path} />;
+  const path = FOREST_TREE_PATHS[Math.abs(seed) % FOREST_TREE_PATHS.length];
+  const scene = useClonedScene(path);
+  return <primitive object={scene} scale={FOREST_TREE_SCALE} />;
 }
 
-// Décor de colline posé SUR une tuile hex_grass (pas de tuile sloped).
-// Rotation sur 6 variantes (A/B/C + `_trees`) pour visibilité.
-const HILLS_PATHS = [
-  PATHS.hillsA,
-  PATHS.hillsATrees,
-  PATHS.hillsB,
-  PATHS.hillsBTrees,
-  PATHS.hillsC,
-  PATHS.hillsCTrees,
-] as const;
+const HILLS_ROCK_SCALE = 0.22;
 
 export function HillsDecor({ seed }: { seed: number }) {
-  const path = HILLS_PATHS[Math.abs(seed) % HILLS_PATHS.length];
-  return <KayKit path={path} />;
+  const path = ROCKS[Math.abs(seed) % ROCKS.length];
+  const scene = useClonedScene(path);
+  return <primitive object={scene} scale={HILLS_ROCK_SCALE} />;
 }
 
-// Décor optionnel posé sur une tuile water (nénuphars, roseaux). Probabilité
-// faible — pas toutes les tuiles d'eau ont du décor.
-const WATER_DECOR_PATHS = [
-  PATHS.waterlilyA,
-  PATHS.waterlilyB,
-  PATHS.waterplantA,
-] as const;
-
-export function WaterDecor({ seed }: { seed: number }) {
-  const path = WATER_DECOR_PATHS[Math.abs(seed) % WATER_DECOR_PATHS.length];
-  return <KayKit path={path} />;
+// Stylized Nature n'a pas de nénuphar. On retombe sur null — la tuile d'eau
+// reste nue (juste la surface bleue, sans décor). V2 pourra ajouter de la
+// végétation aquatique procédurale ou un autre pack.
+export function WaterDecor(_props: { seed: number }) {
+  return null;
 }
 
-// --- Bâtiments. ---
+// --- Bâtiments (composés à partir de Medieval Village MegaKit) ---
+//
+// Cottage 2×2 mètres natifs : sol carrelé + 4 murs en plâtre+colombages
+// (un côté avec porte) + toit dormer en tuiles rondes. Les modules sont
+// calibrés pour s'emboîter ; les offsets `±0.91` placent les murs aux
+// arêtes du sol 2×2.
 
-export function FarmModel({ seed }: { seed: number }) {
-  const path = Math.abs(seed) % 2 === 0 ? PATHS.homeA : PATHS.homeB;
-  return <KayKit path={path} />;
+const COTTAGE_WALL_OFFSET = 0.91;
+const COTTAGE_ROOF_Y = 3.46; // bas du toit aligné sur le haut des murs (Y=3.12)
+const COTTAGE_SCALE = 0.3;
+
+function Cottage() {
+  const floor = useClonedScene(FLOOR);
+  const wallS = useClonedScene(WALL_DOOR);
+  const wallN = useClonedScene(WALL_STRAIGHT);
+  const wallE = useClonedScene(WALL_STRAIGHT);
+  const wallW = useClonedScene(WALL_STRAIGHT);
+  const roof = useClonedScene(ROOF);
+
+  return (
+    <group scale={COTTAGE_SCALE}>
+      <primitive object={floor} />
+      <primitive
+        object={wallS}
+        position={[0, 0, COTTAGE_WALL_OFFSET]}
+      />
+      <primitive
+        object={wallN}
+        position={[0, 0, -COTTAGE_WALL_OFFSET]}
+        rotation={[0, Math.PI, 0]}
+      />
+      <primitive
+        object={wallE}
+        position={[COTTAGE_WALL_OFFSET, 0, 0]}
+        rotation={[0, -Math.PI / 2, 0]}
+      />
+      <primitive
+        object={wallW}
+        position={[-COTTAGE_WALL_OFFSET, 0, 0]}
+        rotation={[0, Math.PI / 2, 0]}
+      />
+      <primitive object={roof} position={[0, COTTAGE_ROOF_Y, 0]} />
+    </group>
+  );
+}
+
+function Workshop() {
+  const floor = useClonedScene(FLOOR);
+  const wallS = useClonedScene(WALL_DOOR);
+  const wallN = useClonedScene(WALL_STRAIGHT);
+  const wallE = useClonedScene(WALL_STRAIGHT);
+  const wallW = useClonedScene(WALL_STRAIGHT);
+  const roof = useClonedScene(ROOF);
+  const chimney = useClonedScene(CHIMNEY);
+
+  return (
+    <group scale={COTTAGE_SCALE}>
+      <primitive object={floor} />
+      <primitive
+        object={wallS}
+        position={[0, 0, COTTAGE_WALL_OFFSET]}
+      />
+      <primitive
+        object={wallN}
+        position={[0, 0, -COTTAGE_WALL_OFFSET]}
+        rotation={[0, Math.PI, 0]}
+      />
+      <primitive
+        object={wallE}
+        position={[COTTAGE_WALL_OFFSET, 0, 0]}
+        rotation={[0, -Math.PI / 2, 0]}
+      />
+      <primitive
+        object={wallW}
+        position={[-COTTAGE_WALL_OFFSET, 0, 0]}
+        rotation={[0, Math.PI / 2, 0]}
+      />
+      <primitive object={roof} position={[0, COTTAGE_ROOF_Y, 0]} />
+      <primitive object={chimney} position={[0.45, 0, -0.3]} />
+    </group>
+  );
+}
+
+export function FarmModel(_props: { seed: number }) {
+  return <Cottage />;
 }
 
 export function MineModel() {
-  return <KayKit path={PATHS.mine} />;
+  return <Workshop />;
 }
 
-// --- Décors standalone (sol périphérique, pas sur tuile hex). ---
+// --- Décor périphérique (hors disque jouable) ---
 
-export function StandaloneTree() {
-  return <KayKit path={PATHS.treeSingleA} />;
-}
-
-const ROCK_PATHS = [
-  PATHS.rockSingleB,
-  PATHS.rockSingleC,
-  PATHS.rockSingleD,
+const STANDALONE_TREE_PATHS = [
+  ...COMMON_TREES,
+  ...DEAD_TREES,
+  ...TWISTED_TREES,
+  ...PINE_TREES,
 ] as const;
+const STANDALONE_TREE_SCALE = 0.22;
+
+export function StandaloneTree({ seed = 0 }: { seed?: number } = {}) {
+  const path =
+    STANDALONE_TREE_PATHS[Math.abs(seed) % STANDALONE_TREE_PATHS.length];
+  const scene = useClonedScene(path);
+  return <primitive object={scene} scale={STANDALONE_TREE_SCALE} />;
+}
 
 export function StandaloneRock({ seed }: { seed: number }) {
-  const path = ROCK_PATHS[Math.abs(seed) % ROCK_PATHS.length];
-  return <KayKit path={path} />;
+  const path = ROCKS[Math.abs(seed) % ROCKS.length];
+  const scene = useClonedScene(path);
+  return <primitive object={scene} scale={0.3} />;
 }
 
-const HILL_SINGLE_PATHS = [PATHS.hillSingleB, PATHS.hillSingleC] as const;
+const BUSH_PATHS = BUSHES;
 
 export function StandaloneHill({ seed }: { seed: number }) {
-  const path = HILL_SINGLE_PATHS[Math.abs(seed) % HILL_SINGLE_PATHS.length];
-  return <KayKit path={path} />;
+  // Stylized Nature n'a pas de "hill" autonome. On utilise un bush
+  // (touffe végétale) — ça lit comme un bosquet sur la prairie.
+  const path = BUSH_PATHS[Math.abs(seed) % BUSH_PATHS.length];
+  const scene = useClonedScene(path);
+  return <primitive object={scene} scale={0.45} />;
 }
 
-const MOUNTAIN_PATHS = [
-  PATHS.mountainA,
-  PATHS.mountainAGrass,
-  PATHS.mountainAGrassTrees,
-  PATHS.mountainB,
-  PATHS.mountainBGrass,
-  PATHS.mountainBGrassTrees,
-  PATHS.mountainC,
-  PATHS.mountainCGrass,
-  PATHS.mountainCGrassTrees,
-] as const;
-
+// Stylized Nature ne contient pas de montagne. On reste sur du procédural :
+// cône pierreux + calotte neigeuse, déterministe par seed.
 export function StandaloneMountain({ seed }: { seed: number }) {
-  const path = MOUNTAIN_PATHS[Math.abs(seed) % MOUNTAIN_PATHS.length];
-  return <KayKit path={path} />;
+  const rng = mulberry32(seed);
+  const h = 2.0 + rng() * 1.5;
+  const r = 0.9 + rng() * 0.4;
+  const snowH = h * 0.4;
+  const snowR = r * 0.42 + 0.05;
+  const snowCenterY = h - snowH / 2;
+  return (
+    <group>
+      <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
+        <coneGeometry args={[r, h, 7]} />
+        <meshStandardMaterial color="#6E6354" roughness={1} flatShading />
+      </mesh>
+      <mesh position={[0, snowCenterY, 0]} castShadow>
+        <coneGeometry args={[snowR, snowH, 7]} />
+        <meshStandardMaterial color="#EFE4C9" roughness={0.78} flatShading />
+      </mesh>
+    </group>
+  );
 }
