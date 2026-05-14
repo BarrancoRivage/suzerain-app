@@ -41,6 +41,13 @@ export type GameState = {
   resources: Resources;
 };
 
+// Entrée de la liste des joueurs (panneau multijoueur). name vaut null tant
+// que le joueur n'a pas renseigné de nom — affiché « Anonyme » côté UI.
+export type PlayerSummary = {
+  playerId: string;
+  name: string | null;
+};
+
 export class GameError extends Error {
   readonly code: string;
 

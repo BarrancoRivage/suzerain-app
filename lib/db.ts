@@ -8,13 +8,28 @@
 // connexion qu'au premier query (createClient / new Pool dans des getters
 // mémoïsés). Aucune connexion superflue n'est tentée.
 
-import { loadStatePg, saveStatePg } from "./db/pg";
-import { loadStateSupabase, saveStateSupabase } from "./db/supabase";
-import type { GameState } from "./game/types";
+import {
+  getPlayerNamePg,
+  listPlayersPg,
+  loadStatePg,
+  saveStatePg,
+  setPlayerNamePg,
+} from "./db/pg";
+import {
+  getPlayerNameSupabase,
+  listPlayersSupabase,
+  loadStateSupabase,
+  saveStateSupabase,
+  setPlayerNameSupabase,
+} from "./db/supabase";
+import type { GameState, PlayerSummary } from "./game/types";
 
 type Backend = {
   loadState: (playerId: string) => Promise<GameState | null>;
   saveState: (state: GameState) => Promise<void>;
+  getPlayerName: (playerId: string) => Promise<string | null>;
+  setPlayerName: (playerId: string, name: string) => Promise<void>;
+  listPlayers: () => Promise<PlayerSummary[]>;
 };
 
 let cachedBackend: Backend | null = null;
@@ -30,9 +45,18 @@ function resolveBackend(): Backend {
     cachedBackend = {
       loadState: loadStateSupabase,
       saveState: saveStateSupabase,
+      getPlayerName: getPlayerNameSupabase,
+      setPlayerName: setPlayerNameSupabase,
+      listPlayers: listPlayersSupabase,
     };
   } else if (process.env.DATABASE_URL) {
-    cachedBackend = { loadState: loadStatePg, saveState: saveStatePg };
+    cachedBackend = {
+      loadState: loadStatePg,
+      saveState: saveStatePg,
+      getPlayerName: getPlayerNamePg,
+      setPlayerName: setPlayerNamePg,
+      listPlayers: listPlayersPg,
+    };
   } else {
     throw new Error(
       "Aucun backend DB configuré. En dev : `docker compose up` (DATABASE_URL). " +
@@ -49,4 +73,21 @@ export async function loadState(playerId: string): Promise<GameState | null> {
 
 export async function saveState(state: GameState): Promise<void> {
   return resolveBackend().saveState(state);
+}
+
+export async function getPlayerName(
+  playerId: string,
+): Promise<string | null> {
+  return resolveBackend().getPlayerName(playerId);
+}
+
+export async function setPlayerName(
+  playerId: string,
+  name: string,
+): Promise<void> {
+  return resolveBackend().setPlayerName(playerId, name);
+}
+
+export async function listPlayers(): Promise<PlayerSummary[]> {
+  return resolveBackend().listPlayers();
 }
