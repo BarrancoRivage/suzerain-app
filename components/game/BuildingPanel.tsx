@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { BUILDINGS } from "@/lib/game/buildings";
 import {
   buildingRate,
@@ -66,6 +67,24 @@ export function BuildingPanel({
   // sans attendre un aller-retour serveur.
   const { displayed: liveResources } = useAnimatedResources(state);
 
+  // Clic en dehors du panneau → fermeture. On écoute `pointerdown` au niveau du
+  // document : tout clic dont la cible n'est pas dans le panneau le referme
+  // (cliquer un autre bâtiment le rouvre aussitôt via le handler du plateau).
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(event.target as Node)
+      ) {
+        onClose();
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () =>
+      document.removeEventListener("pointerdown", handlePointerDown);
+  }, [onClose]);
+
   const building = tile.building;
   if (building === null) return null;
 
@@ -99,7 +118,10 @@ export function BuildingPanel({
   );
 
   return (
-    <div className="w-72 rounded-md border border-gold/40 bg-parchment/95 p-5 shadow-lg">
+    <div
+      ref={panelRef}
+      className="w-72 rounded-md border border-gold/40 bg-parchment/95 p-5 shadow-lg"
+    >
       <div className="flex items-start gap-3">
         <Icon className={`h-9 w-9 ${color} pixelated`} />
         <div className="flex-1">
