@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import type { Group } from "three";
 import { useFrame } from "@react-three/fiber";
 
 import { hashCoord } from "@/lib/game/rng";
 import type { Tile } from "@/lib/game/types";
+import { HexPbrTopper } from "./HexPbrTopper";
 import { axialToWorld, reliefNoise } from "./hexMath";
 import {
   FarmModel,
@@ -72,6 +73,14 @@ export function HexTile({ tile, clickable, onClick }: Props) {
       }}
     >
       <TileBase tile={tile} />
+      {/* PBR topper : plaque fine MegaKit splatmap au-dessus du grass KayKit.
+          Skipped pour eau (surface bleue) et tuiles path (river/road : la
+          tuile mesh porte déjà sa propre texture). */}
+      {tile.biome !== "water" && !tile.path && (
+        <Suspense fallback={null}>
+          <HexPbrTopper />
+        </Suspense>
+      )}
       {/* Le contenu de la tuile (bâtiment ou décor de biome) est réduit pour
           ne pas remplir entièrement le hex — laisse respirer le bord. */}
       {tile.biome !== "water" && (
