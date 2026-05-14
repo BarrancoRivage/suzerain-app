@@ -1,15 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  Color,
-  PlaneGeometry,
-  RepeatWrapping,
-  SRGBColorSpace,
-  TextureLoader,
-} from "three";
+import { useMemo, useState } from "react";
+import { Color, PlaneGeometry } from "three";
 import { Line } from "@react-three/drei";
-import { useLoader, type ThreeEvent } from "@react-three/fiber";
+import { type ThreeEvent } from "@react-three/fiber";
 
 import { GRID_RADIUS } from "@/lib/game/types";
 import {
@@ -19,14 +13,12 @@ import {
   worldToAxial,
 } from "./hexMath";
 
-// Terrain CONTINU : une seule PlaneGeometry subdivisée couvre TOUTE la carte
-// (disque jouable + anneau périphérique). Texture grass Poly Haven samplée
-// par coords world XZ → continue à travers les frontières des hex, aucun
-// joint visible. Le « grid hex » n'est qu'un overlay (sur hover) — la
-// surface elle-même est uniforme.
-
-const TEX_GRASS_DIFF =
-  "/assets/textures/aerial-grass-rock/aerial_grass_rock_diff_4k.jpg";
+// Terrain CONTINU : une seule PlaneGeometry subdivisée couvre TOUTE la
+// carte (disque jouable + anneau périphérique). On a essayé une texture
+// PBR Poly Haven `aerial_grass_rock` mais le rendu sortait brunâtre à
+// notre échelle de tile (sample dominé par les rochers du mix). Retour à
+// une matière unie verte avec relief : flat shading sur les facettes
+// affichées par la subdivision, déjà bcp plus lisible et net.
 
 const TERRAIN_SIZE = 70;
 const TERRAIN_SEGMENTS = 192;
@@ -38,10 +30,8 @@ const RELIEF_AMPLITUDE = 0.9;
 // Y du sommet de terrain au repos (à l'intérieur du disque jouable). Choisi
 // pour que les décors/bâtiments calés à Y=0 soient correctement posés.
 const TERRAIN_BASE_Y = 0;
-// Échelle UV du tile sampling : 1 répétition tous les ~6 m. Plus haut =
-// plus tassé visuellement.
-const TEXTURE_TILE = 0.16;
 
+const TERRAIN_COLOR = "#7BA549"; // vert prairie franc
 const HOVER_COLOR = new Color("#EFC75A");
 
 // Élévation du sol en (x, z) world : flat dans le disque jouable, ondulé
@@ -63,7 +53,6 @@ function buildTerrainGeometry(): PlaneGeometry {
     TERRAIN_SEGMENTS,
   );
   const pos = geo.attributes.position;
-  const uv = geo.attributes.uv;
   for (let i = 0; i < pos.count; i++) {
     const lx = pos.getX(i);
     const ly = pos.getY(i);
@@ -71,12 +60,8 @@ function buildTerrainGeometry(): PlaneGeometry {
     const wx = lx;
     const wz = -ly;
     pos.setZ(i, terrainElevation(wx, wz));
-    // UV samplé par world coords pour que la texture soit continue à
-    // travers toute la carte, indépendamment du découpage hex.
-    uv.setXY(i, wx * TEXTURE_TILE, wz * TEXTURE_TILE);
   }
   pos.needsUpdate = true;
-  uv.needsUpdate = true;
   geo.computeVertexNormals();
   return geo;
 }
@@ -99,15 +84,8 @@ type Props = {
 };
 
 export function Terrain({ isClickable, onTileClick }: Props) {
-  const grass = useLoader(TextureLoader, TEX_GRASS_DIFF);
   const geometry = useMemo(buildTerrainGeometry, []);
   const [hovered, setHovered] = useState<[number, number] | null>(null);
-
-  useEffect(() => {
-    grass.wrapS = RepeatWrapping;
-    grass.wrapT = RepeatWrapping;
-    grass.colorSpace = SRGBColorSpace;
-  }, [grass]);
 
   function tileAt(e: ThreeEvent<PointerEvent | MouseEvent>): [number, number] | null {
     const [q, r] = worldToAxial(e.point.x, e.point.z);
@@ -153,7 +131,11 @@ export function Terrain({ isClickable, onTileClick }: Props) {
           onTileClick(hex[0], hex[1]);
         }}
       >
-        <meshStandardMaterial map={grass} roughness={0.92} />
+        <meshStandardMaterial
+          color={TERRAIN_COLOR}
+          roughness={0.95}
+          flatShading
+        />
       </mesh>
 
       {hovered ? (
