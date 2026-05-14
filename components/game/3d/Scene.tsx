@@ -14,6 +14,8 @@ import type { GameState } from "@/lib/game/types";
 import { EdgePanControls } from "./EdgePanControls";
 import { HexTile } from "./HexTile";
 import { Landscape } from "./Landscape";
+import { Terrain } from "./Terrain";
+import { WaterTiles } from "./WaterTiles";
 
 type Props = {
   state: GameState;
@@ -58,15 +60,20 @@ export function Scene({ state, clickableTileKey, onTileClick }: Props) {
       <ambientLight intensity={0.18} color="#FFF1D4" />
 
       <Suspense fallback={null}>
-        <Landscape />
+        {/* Mesh continue qui couvre toute la map. Gère click + hover. */}
+        <Terrain
+          isClickable={clickableTileKey}
+          onTileClick={onTileClick}
+        />
+        {/* Lacs / rivières : plaques bleues posées sur les tuiles water. */}
+        <WaterTiles state={state} />
+        {/* Décor de biome + bâtiments, placés au centre de chaque hex,
+            calés à l'élévation du terrain. */}
         {state.tiles.map((tile) => (
-          <HexTile
-            key={`${tile.q}:${tile.r}`}
-            tile={tile}
-            clickable={clickableTileKey(tile.q, tile.r)}
-            onClick={() => onTileClick(tile.q, tile.r)}
-          />
+          <HexTile key={`${tile.q}:${tile.r}`} tile={tile} />
         ))}
+        {/* Décor périphérique (montagnes, arbres au-delà du disque jouable). */}
+        <Landscape />
       </Suspense>
 
       <OrbitControls

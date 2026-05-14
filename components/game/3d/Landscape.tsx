@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { PlaneGeometry } from "three";
 
 import { mulberry32, pickWeighted } from "@/lib/game/rng";
-import { reliefNoise } from "./hexMath";
+import { terrainElevation } from "./Terrain";
 import {
   StandaloneHill,
   StandaloneMountain,
@@ -12,23 +11,11 @@ import {
   StandaloneTree,
 } from "./models/Models";
 
-// Sol périphérique avec relief. PlaneGeometry 96² sommets, chaque vertex
-// déplacé en Y par une somme de sinus pondérée par un easing radial : flat
-// dans le disque jouable (rayon ≤ 6.5), ramp doux entre 6.5 et 8, full
-// déplacement au-delà. Le décor (arbres, rochers, collines, montagnes)
-// échantillonne la même fonction `groundY` pour suivre les bosses du sol.
-
-const TILE_BOTTOM_Y = -0.05;
-const GROUND_COLOR = "#7BA549";
-const GROUND_SIZE = 110;
-const GROUND_SEGMENTS = 160;
-// Disque jouable de rayon axial 6 → world distance max ≈ 10.4. On garde une
-// marge de 1.5 avant que le sol commence à monter.
-const PLAYABLE_FLAT_RADIUS = 12;
-const RAMP_END = 15.0;
-// Relief : 80 cm d'amplitude. Combiné aux fréquences basses de reliefNoise,
-// donne des ondulations marquées (collines visibles) sans pics aigus.
-const RELIEF_AMPLITUDE = 0.8;
+// Décor périphérique au-delà du disque jouable. La mesh de terrain elle-même
+// est gérée par Terrain.tsx (mesh continue, displacement intégré). Ici on
+// ne fait que scattering : arbres, rochers, collines, montagnes au-delà
+// du rayon `DECOR_INNER`, chaque élément aligné en Y sur l'élévation du
+// terrain (terrainElevation partagée).
 
 const DECOR_INNER = 13.5;
 const DECOR_OUTER_NEAR = 22;
@@ -45,61 +32,14 @@ type DecorItem = {
   seed: number;
 };
 
-function easedRamp(dist: number): number {
-  const t = Math.max(
-    0,
-    Math.min(1, (dist - PLAYABLE_FLAT_RADIUS) / (RAMP_END - PLAYABLE_FLAT_RADIUS)),
-  );
-  return t * t * (3 - 2 * t);
-}
-
-function groundY(x: number, z: number): number {
-  const dist = Math.sqrt(x * x + z * z);
-  return (
-    TILE_BOTTOM_Y + reliefNoise(x, z) * RELIEF_AMPLITUDE * easedRamp(dist)
-  );
-}
-
-function buildGroundGeometry() {
-  const geo = new PlaneGeometry(
-    GROUND_SIZE,
-    GROUND_SIZE,
-    GROUND_SEGMENTS,
-    GROUND_SEGMENTS,
-  );
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const lx = pos.getX(i);
-    const ly = pos.getY(i);
-    // Plan tourné -π/2 autour de X : local (x, y, 0) → world (x, 0, -y).
-    // Donc world_z pour ce vertex = -local_y. On échantillonne `noise2D`
-    // sur les coords world pour que `groundY(x, z)` (utilisée par le
-    // décor) renvoie exactement la hauteur de ce vertex.
-    const wx = lx;
-    const wz = -ly;
-    const dist = Math.sqrt(wx * wx + wz * wz);
-    pos.setZ(i, reliefNoise(wx, wz) * RELIEF_AMPLITUDE * easedRamp(dist));
-  }
-  pos.needsUpdate = true;
-  geo.computeVertexNormals();
-  return geo;
-}
-
 export function Landscape() {
   const decor = useMemo(buildDecor, []);
-  const groundGeometry = useMemo(buildGroundGeometry, []);
-
+  // Pas de ground mesh ici — la grosse mesh terrain continue (cf. Terrain.tsx)
+  // couvre toute la map. Landscape ne s'occupe plus que de scattering les
+  // décors périphériques (arbres, rochers, montagnes au-delà du disque
+  // jouable).
   return (
     <>
-      <mesh
-        geometry={groundGeometry}
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, TILE_BOTTOM_Y, 0]}
-        receiveShadow
-      >
-        <meshStandardMaterial color={GROUND_COLOR} roughness={1} flatShading />
-      </mesh>
-
       {decor.map((item, i) => (
         <DecorObject key={i} item={item} />
       ))}
@@ -108,9 +48,9 @@ export function Landscape() {
 }
 
 function DecorObject({ item }: { item: DecorItem }) {
-  // Le décor s'aligne sur la hauteur du sol à ses coords XZ — il monte avec
-  // les bosses au lieu de flotter à TILE_BOTTOM_Y.
-  const y = groundY(item.x, item.z);
+  // L'élévation vient de la même fonction que la mesh terrain — décor et
+  // sol restent cohérents partout.
+  const y = terrainElevation(item.x, item.z);
   return (
     <group
       position={[item.x, y, item.z]}

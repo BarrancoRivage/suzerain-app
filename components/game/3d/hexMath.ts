@@ -14,6 +14,24 @@ export function axialToWorld(q: number, r: number): [number, number] {
   return [x, z];
 }
 
+// Inverse de `axialToWorld` (pointy-top). On résout la formule pour obtenir
+// les coords axiales fractionnaires, puis on arrondit au hex le plus proche
+// via cube rounding (technique standard, cf. redblobgames).
+export function worldToAxial(x: number, z: number): [number, number] {
+  const qf = (x / SQRT3 - z / 3) / HEX_SIZE;
+  const rf = ((2 / 3) * z) / HEX_SIZE;
+  const sf = -qf - rf;
+  let q = Math.round(qf);
+  let r = Math.round(rf);
+  const s = Math.round(sf);
+  const dq = Math.abs(q - qf);
+  const dr = Math.abs(r - rf);
+  const ds = Math.abs(s - sf);
+  if (dq > dr && dq > ds) q = -r - s;
+  else if (dr > ds) r = -q - s;
+  return [q, r];
+}
+
 // Bruit partagé entre tuiles jouables et sol périphérique pour que les deux
 // suivent le même pattern de relief. Somme de sinus à 3 fréquences basses
 // pour produire des ondulations larges (pas de pics aigus). Rangé dans

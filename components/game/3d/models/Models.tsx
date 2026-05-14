@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo } from "react";
 import {
-  DoubleSide,
   Mesh,
+  NoColorSpace,
   RepeatWrapping,
   SRGBColorSpace,
   TextureLoader,
@@ -21,10 +21,12 @@ import { mulberry32 } from "@/lib/game/rng";
 // à la volée pour chaque ferme / mine) ; Poly Haven `aerial_grass_rock`
 // fournit la texture PBR du dessus des tuiles d'herbe.
 
+// (TEX_GRASS_DIFF était utilisé par l'ancien HexGrassTile — la mesh
+// terrain continue dans Terrain.tsx charge sa propre instance via
+// useLoader. Plus de référence ici.)
+
 const NATURE = "/assets/stylized-nature/glTF";
 const VILLAGE = "/assets/medieval-village/glTF";
-const TEX_GRASS_DIFF =
-  "/assets/textures/aerial-grass-rock/aerial_grass_rock_diff_4k.jpg";
 
 // --- Chemins glTF ---
 
@@ -42,14 +44,22 @@ const BUSHES = [
   `${NATURE}/Bush_Common_Flowers.gltf`,
 ];
 
-const WALL_STRAIGHT = `${VILLAGE}/Wall_Plaster_Straight.gltf`;
-const WALL_DOOR = `${VILLAGE}/Wall_Plaster_Door_Flat.gltf`;
-const FLOOR = `${VILLAGE}/Floor_Brick.gltf`;
-const ROOF = `${VILLAGE}/Roof_Dormer_RoundTile.gltf`;
-const CHIMNEY = `${VILLAGE}/Prop_Chimney.gltf`;
+// Textures PBR Quaternius Medieval Village (utilisées sur les bâtiments
+// procéduraux ci-dessous, pas en glTF — on a essayé de composer les modules
+// Wall/Floor/Roof à la main et le résultat était cassé visuellement parce
+// que ce kit a un ancrage modulaire qui nécessite un éditeur 3D pour
+// positionner sans bug. On reste sur des BoxGeometry / ConeGeometry simples
+// avec les textures PBR appliquées par-dessus).
+const TEX_PLASTER_BASE = `${VILLAGE.replace("/glTF", "/Textures")}/T_Plaster_BaseColor.png`;
+const TEX_PLASTER_NORMAL = `${VILLAGE.replace("/glTF", "/Textures")}/T_Plaster_Normal.png`;
+const TEX_TILES_BASE = `${VILLAGE.replace("/glTF", "/Textures")}/T_RoundTiles_BaseColor.png`;
+const TEX_TILES_NORMAL = `${VILLAGE.replace("/glTF", "/Textures")}/T_RoundTiles_Normal.png`;
+const TEX_ROCK_BASE = `${VILLAGE.replace("/glTF", "/Textures")}/T_RockTrim_BaseColor.png`;
+const TEX_ROCK_NORMAL = `${VILLAGE.replace("/glTF", "/Textures")}/T_RockTrim_Normal.png`;
+const TEX_WOOD_BASE = `${VILLAGE.replace("/glTF", "/Textures")}/T_WoodTrim_BaseColor.png`;
+const TEX_WOOD_NORMAL = `${VILLAGE.replace("/glTF", "/Textures")}/T_WoodTrim_Normal.png`;
 
-// Preload : tous les modules au module-level pour éviter les Suspense
-// flashs au premier mount de chaque tuile.
+// Preload glTF (décor uniquement — les bâtiments n'utilisent pas les modules).
 const PRELOAD = [
   ...COMMON_TREES,
   ...PINE_TREES,
@@ -57,11 +67,6 @@ const PRELOAD = [
   ...TWISTED_TREES,
   ...ROCKS,
   ...BUSHES,
-  WALL_STRAIGHT,
-  WALL_DOOR,
-  FLOOR,
-  ROOF,
-  CHIMNEY,
 ];
 for (const p of PRELOAD) useGLTF.preload(p);
 
@@ -83,95 +88,10 @@ function useClonedScene(path: string): Object3D {
   }, [scene]);
 }
 
-function useGrassTexture() {
-  const tex = useLoader(TextureLoader, TEX_GRASS_DIFF);
-  useEffect(() => {
-    tex.wrapS = RepeatWrapping;
-    tex.wrapT = RepeatWrapping;
-    // ~1 répétition tous les ~2.5 m, donne du grain sans visibilité des joints.
-    tex.repeat.set(0.4, 0.4);
-    tex.colorSpace = SRGBColorSpace;
-  }, [tex]);
-  return tex;
-}
-
-// --- Tuiles hex procédurales ---
-//
-// On a abandonné les .glb KayKit. Chaque tuile = un prisme hexagonal très
-// fin construit avec CylinderGeometry(R, R, h, 6). Le dessus utilise la
-// texture grass PBR Poly Haven, les flancs un brun terreux uni. Top à Y=0
-// dans le repère de la tuile — le décor / les bâtiments s'empilent dessus.
-
-const TILE_HEIGHT = 0.5;
-const DIRT_SIDE_COLOR = "#8C6F4A";
-const WATER_TOP_COLOR = "#4A8AB8";
-const WATER_DROP = 0.08; // surface d'eau légèrement enfoncée vs grass top
-
-export function HexGrassTile() {
-  const grass = useGrassTexture();
-  return (
-    <group>
-      <mesh position={[0, -TILE_HEIGHT / 2, 0]} receiveShadow castShadow>
-        <cylinderGeometry args={[1, 1, TILE_HEIGHT, 6, 1, true]} />
-        <meshStandardMaterial
-          color={DIRT_SIDE_COLOR}
-          roughness={1}
-          side={DoubleSide}
-        />
-      </mesh>
-      <mesh
-        position={[0, 0, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
-      >
-        <circleGeometry args={[1, 6]} />
-        <meshStandardMaterial map={grass} roughness={0.92} />
-      </mesh>
-    </group>
-  );
-}
-
-export function HexWaterTile() {
-  return (
-    <group>
-      <mesh position={[0, -TILE_HEIGHT / 2, 0]} receiveShadow>
-        <cylinderGeometry args={[1, 1, TILE_HEIGHT, 6, 1, true]} />
-        <meshStandardMaterial
-          color={DIRT_SIDE_COLOR}
-          roughness={1}
-          side={DoubleSide}
-        />
-      </mesh>
-      <mesh
-        position={[0, -WATER_DROP, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
-      >
-        <circleGeometry args={[1, 6]} />
-        <meshStandardMaterial
-          color={WATER_TOP_COLOR}
-          roughness={0.35}
-          metalness={0.05}
-        />
-      </mesh>
-    </group>
-  );
-}
-
-// V1 : rivières et routes rendues comme les tuiles de base. Les données
-// d'orientation (inEdge, outEdge) restent en state — V2 ajoutera des
-// shaders pour dessiner le tracé du cours d'eau et du chemin.
-type PathProps = { inEdge: number; outEdge: number };
-
-export function HexRiverTile(_props: PathProps) {
-  return <HexWaterTile />;
-}
-
-export function HexRoadTile(_props: PathProps) {
-  return <HexGrassTile />;
-}
-
 // --- Décor de biome (sur tuile jouable) ---
+// Les anciens composants HexGrassTile / HexWaterTile / HexRiverTile /
+// HexRoadTile ont été supprimés : la mesh de terrain est maintenant
+// continue (cf. Terrain.tsx) et les lacs sont rendus par WaterTiles.tsx.
 
 const FOREST_TREE_PATHS = [...COMMON_TREES, ...PINE_TREES] as const;
 const FOREST_TREE_SCALE = 0.18;
@@ -190,92 +110,187 @@ export function HillsDecor({ seed }: { seed: number }) {
   return <primitive object={scene} scale={HILLS_ROCK_SCALE} />;
 }
 
-// Stylized Nature n'a pas de nénuphar. On retombe sur null — la tuile d'eau
-// reste nue (juste la surface bleue, sans décor). V2 pourra ajouter de la
-// végétation aquatique procédurale ou un autre pack.
-export function WaterDecor(_props: { seed: number }) {
-  return null;
+// --- Bâtiments (procédural + textures PBR Medieval Village) ---
+//
+// Pourquoi pas la compose modulaire glTF : les modules MegaKit (Wall/Floor/
+// Roof) ont des ancrages spécifiques qui demandent un éditeur 3D pour
+// positionner sans gaps / sans murs inversés. On reste donc sur des
+// primitives géométriques (Box, Cone) sur lesquelles on plaque les
+// textures PBR du pack. Visuel cohérent, positionnement maîtrisé,
+// ferme et mine clairement distinctes.
+
+// Hook qui charge les 8 textures PBR utilisées par les deux bâtiments,
+// les configure (wrap, color space, repeat) une seule fois, et renvoie
+// l'objet partagé. useLoader cache les textures par URL — un seul fetch
+// même si le hook est appelé depuis plusieurs composants.
+function useBuildingTextures() {
+  const [
+    plasterBase, plasterNormal,
+    tilesBase, tilesNormal,
+    rockBase, rockNormal,
+    woodBase, woodNormal,
+  ] = useLoader(TextureLoader, [
+    TEX_PLASTER_BASE, TEX_PLASTER_NORMAL,
+    TEX_TILES_BASE, TEX_TILES_NORMAL,
+    TEX_ROCK_BASE, TEX_ROCK_NORMAL,
+    TEX_WOOD_BASE, TEX_WOOD_NORMAL,
+  ]);
+
+  useEffect(() => {
+    const colorMaps = [plasterBase, tilesBase, rockBase, woodBase];
+    const normalMaps = [plasterNormal, tilesNormal, rockNormal, woodNormal];
+    for (const t of colorMaps) {
+      t.wrapS = RepeatWrapping;
+      t.wrapT = RepeatWrapping;
+      t.colorSpace = SRGBColorSpace;
+    }
+    for (const t of normalMaps) {
+      t.wrapS = RepeatWrapping;
+      t.wrapT = RepeatWrapping;
+      t.colorSpace = NoColorSpace;
+    }
+    // Tuiles serrées sur le toit, plâtre moins répété sur les murs.
+    plasterBase.repeat.set(1.5, 1);
+    plasterNormal.repeat.set(1.5, 1);
+    tilesBase.repeat.set(0.8, 0.8);
+    tilesNormal.repeat.set(0.8, 0.8);
+    rockBase.repeat.set(1, 1);
+    rockNormal.repeat.set(1, 1);
+  }, [plasterBase, plasterNormal, tilesBase, tilesNormal, rockBase, rockNormal, woodBase, woodNormal]);
+
+  return { plasterBase, plasterNormal, tilesBase, tilesNormal, rockBase, rockNormal, woodBase, woodNormal };
 }
 
-// --- Bâtiments (composés à partir de Medieval Village MegaKit) ---
-//
-// Cottage 2×2 mètres natifs : sol carrelé + 4 murs en plâtre+colombages
-// (un côté avec porte) + toit dormer en tuiles rondes. Les modules sont
-// calibrés pour s'emboîter ; les offsets `±0.91` placent les murs aux
-// arêtes du sol 2×2.
-
-const COTTAGE_WALL_OFFSET = 0.91;
-const COTTAGE_ROOF_Y = 3.46; // bas du toit aligné sur le haut des murs (Y=3.12)
-const COTTAGE_SCALE = 0.3;
-
+// FERME : chaumière compacte avec murs en plâtre, toit pyramidal en tuiles
+// rondes terracotta, porte en bois sur la façade avant, petite cheminée
+// pierre.
 function Cottage() {
-  const floor = useClonedScene(FLOOR);
-  const wallS = useClonedScene(WALL_DOOR);
-  const wallN = useClonedScene(WALL_STRAIGHT);
-  const wallE = useClonedScene(WALL_STRAIGHT);
-  const wallW = useClonedScene(WALL_STRAIGHT);
-  const roof = useClonedScene(ROOF);
+  const { plasterBase, plasterNormal, tilesBase, tilesNormal, woodBase, rockBase, rockNormal } =
+    useBuildingTextures();
+
+  const WALL_W = 0.85;
+  const WALL_D = 0.7;
+  const WALL_H = 0.55;
+  const ROOF_R = 0.65;
+  const ROOF_H = 0.4;
 
   return (
-    <group scale={COTTAGE_SCALE}>
-      <primitive object={floor} />
-      <primitive
-        object={wallS}
-        position={[0, 0, COTTAGE_WALL_OFFSET]}
-      />
-      <primitive
-        object={wallN}
-        position={[0, 0, -COTTAGE_WALL_OFFSET]}
-        rotation={[0, Math.PI, 0]}
-      />
-      <primitive
-        object={wallE}
-        position={[COTTAGE_WALL_OFFSET, 0, 0]}
-        rotation={[0, -Math.PI / 2, 0]}
-      />
-      <primitive
-        object={wallW}
-        position={[-COTTAGE_WALL_OFFSET, 0, 0]}
-        rotation={[0, Math.PI / 2, 0]}
-      />
-      <primitive object={roof} position={[0, COTTAGE_ROOF_Y, 0]} />
+    <group>
+      {/* Murs (1 box, le plâtre PBR habille les 4 faces) */}
+      <mesh position={[0, WALL_H / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[WALL_W, WALL_H, WALL_D]} />
+        <meshStandardMaterial
+          map={plasterBase}
+          normalMap={plasterNormal}
+          roughness={0.92}
+        />
+      </mesh>
+
+      {/* Toit pyramidal (cone 4 segments) — rotation 45° pour qu'une arête
+          regarde la façade frontale */}
+      <mesh
+        position={[0, WALL_H + ROOF_H / 2, 0]}
+        rotation={[0, Math.PI / 4, 0]}
+        castShadow
+      >
+        <coneGeometry args={[ROOF_R, ROOF_H, 4]} />
+        <meshStandardMaterial
+          map={tilesBase}
+          normalMap={tilesNormal}
+          roughness={0.82}
+        />
+      </mesh>
+
+      {/* Porte centrée sur la façade +Z, bois sombre */}
+      <mesh
+        position={[0, 0.18, WALL_D / 2 + 0.001]}
+        castShadow
+      >
+        <boxGeometry args={[0.2, 0.32, 0.02]} />
+        <meshStandardMaterial map={woodBase} roughness={0.95} color="#5C3D1F" />
+      </mesh>
+
+      {/* Cheminée pierre sur le toit, côté arrière */}
+      <mesh position={[0.22, WALL_H + ROOF_H + 0.05, -0.15]} castShadow>
+        <boxGeometry args={[0.1, 0.22, 0.1]} />
+        <meshStandardMaterial
+          map={rockBase}
+          normalMap={rockNormal}
+          roughness={0.95}
+        />
+      </mesh>
     </group>
   );
 }
 
-function Workshop() {
-  const floor = useClonedScene(FLOOR);
-  const wallS = useClonedScene(WALL_DOOR);
-  const wallN = useClonedScene(WALL_STRAIGHT);
-  const wallE = useClonedScene(WALL_STRAIGHT);
-  const wallW = useClonedScene(WALL_STRAIGHT);
-  const roof = useClonedScene(ROOF);
-  const chimney = useClonedScene(CHIMNEY);
+// MINE : galerie creusée dans un monticule de pierre. Pas une maison —
+// visuellement très différente de la ferme. Cône rocheux + entrée sombre
+// encadrée de poutres en bois + petit tas de minerai doré devant.
+function MineEntrance() {
+  const { rockBase, rockNormal, woodBase, woodNormal } = useBuildingTextures();
 
   return (
-    <group scale={COTTAGE_SCALE}>
-      <primitive object={floor} />
-      <primitive
-        object={wallS}
-        position={[0, 0, COTTAGE_WALL_OFFSET]}
-      />
-      <primitive
-        object={wallN}
-        position={[0, 0, -COTTAGE_WALL_OFFSET]}
-        rotation={[0, Math.PI, 0]}
-      />
-      <primitive
-        object={wallE}
-        position={[COTTAGE_WALL_OFFSET, 0, 0]}
-        rotation={[0, -Math.PI / 2, 0]}
-      />
-      <primitive
-        object={wallW}
-        position={[-COTTAGE_WALL_OFFSET, 0, 0]}
-        rotation={[0, Math.PI / 2, 0]}
-      />
-      <primitive object={roof} position={[0, COTTAGE_ROOF_Y, 0]} />
-      <primitive object={chimney} position={[0.45, 0, -0.3]} />
+    <group>
+      {/* Monticule de pierre */}
+      <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
+        <coneGeometry args={[0.7, 0.9, 8]} />
+        <meshStandardMaterial
+          map={rockBase}
+          normalMap={rockNormal}
+          roughness={1}
+          flatShading
+        />
+      </mesh>
+
+      {/* Entrée sombre (face +Z) */}
+      <mesh position={[0, 0.2, 0.42]} castShadow>
+        <boxGeometry args={[0.32, 0.4, 0.08]} />
+        <meshStandardMaterial color="#080604" roughness={1} />
+      </mesh>
+
+      {/* Cadre bois : 2 poteaux + linteau */}
+      <mesh position={[-0.18, 0.2, 0.45]} castShadow>
+        <boxGeometry args={[0.06, 0.42, 0.06]} />
+        <meshStandardMaterial
+          map={woodBase}
+          normalMap={woodNormal}
+          roughness={0.95}
+        />
+      </mesh>
+      <mesh position={[0.18, 0.2, 0.45]} castShadow>
+        <boxGeometry args={[0.06, 0.42, 0.06]} />
+        <meshStandardMaterial
+          map={woodBase}
+          normalMap={woodNormal}
+          roughness={0.95}
+        />
+      </mesh>
+      <mesh position={[0, 0.41, 0.45]} castShadow>
+        <boxGeometry args={[0.42, 0.06, 0.07]} />
+        <meshStandardMaterial
+          map={woodBase}
+          normalMap={woodNormal}
+          roughness={0.95}
+        />
+      </mesh>
+
+      {/* Petit tas de minerai doré devant l'entrée */}
+      <mesh position={[0.3, 0.05, 0.45]} castShadow>
+        <dodecahedronGeometry args={[0.09, 0]} />
+        <meshStandardMaterial
+          color="#A88A3C"
+          roughness={0.5}
+          metalness={0.4}
+        />
+      </mesh>
+      <mesh position={[0.25, 0.06, 0.55]} castShadow>
+        <dodecahedronGeometry args={[0.07, 0]} />
+        <meshStandardMaterial
+          color="#947A33"
+          roughness={0.5}
+          metalness={0.4}
+        />
+      </mesh>
     </group>
   );
 }
@@ -285,14 +300,16 @@ export function FarmModel(_props: { seed: number }) {
 }
 
 export function MineModel() {
-  return <Workshop />;
+  return <MineEntrance />;
 }
 
 // --- Décor périphérique (hors disque jouable) ---
 
+// On évite les DeadTree dans le pool standalone : leur feuillage orange/
+// rouge ressort beaucoup et donne une carte trop automnale. Si on veut en
+// reintroduire ponctuellement il faut les pondérer très faiblement.
 const STANDALONE_TREE_PATHS = [
   ...COMMON_TREES,
-  ...DEAD_TREES,
   ...TWISTED_TREES,
   ...PINE_TREES,
 ] as const;
