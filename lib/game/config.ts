@@ -34,7 +34,7 @@ export const GAME_CONFIG: Readonly<Record<BuildingKind, BuildingConfig>> = {
     description: "Produit du grain à un rythme régulier.",
     produces: "grain",
     baseRatePerSecond: 0.1,
-    baseCost: { grain: 0 },
+    baseCost: { gold: 10 },
     baseUpgradeCost: { grain: 15 },
     upgradeCostFactor: 1.6,
     rateGrowthPerLevel: 0.1,
@@ -79,4 +79,32 @@ export function buildingRate(kind: BuildingKind, level: number): number {
 
 export function isMaxLevel(kind: BuildingKind, level: number): boolean {
   return level >= GAME_CONFIG[kind].maxLevel;
+}
+
+// Remboursement à la revente d'un bâtiment : 50 % du total investi (coût de
+// pose + toutes les améliorations payées pour atteindre `level`), arrondi au
+// plancher. Réutilise `upgradeCost` — pas de duplication de la formule.
+export function sellRefund(
+  kind: BuildingKind,
+  level: number,
+): Partial<Record<ResourceKind, number>> {
+  const invested: Partial<Record<ResourceKind, number>> = {};
+  const add = (cost: Partial<Record<ResourceKind, number>>) => {
+    for (const [resource, amount] of Object.entries(cost) as Array<
+      [ResourceKind, number]
+    >) {
+      invested[resource] = (invested[resource] ?? 0) + amount;
+    }
+  };
+
+  add(GAME_CONFIG[kind].baseCost);
+  for (let lvl = 1; lvl < level; lvl++) add(upgradeCost(kind, lvl));
+
+  const refund: Partial<Record<ResourceKind, number>> = {};
+  for (const [resource, amount] of Object.entries(invested) as Array<
+    [ResourceKind, number]
+  >) {
+    refund[resource] = Math.floor(amount * 0.5);
+  }
+  return refund;
 }

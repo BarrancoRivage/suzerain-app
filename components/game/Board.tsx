@@ -8,6 +8,7 @@ import {
   loadGameAction,
   loadPlayerStateAction,
   placeBuildingAction,
+  sellBuildingAction,
   setPlayerNameAction,
   upgradeBuildingAction,
 } from "@/app/play/actions";
@@ -174,6 +175,22 @@ export function Board() {
     });
   }
 
+  function handleSell() {
+    if (inspected === null || isReadOnly || pending) return;
+    const { q, r } = inspected;
+    setActionError(null);
+    startTransition(async () => {
+      const res = await sellBuildingAction(q, r);
+      if (res.ok) {
+        setOwnState(res.state);
+        // Le bâtiment n'existe plus : on ferme le panneau d'inspection.
+        setInspected(null);
+      } else {
+        setActionError(res.message);
+      }
+    });
+  }
+
   if (loadError !== null) {
     return (
       <div className="absolute inset-0 flex items-center justify-center">
@@ -274,6 +291,7 @@ export function Board() {
               pending={pending}
               error={actionError}
               onUpgrade={handleUpgrade}
+              onSell={handleSell}
               onClose={() => setInspected(null)}
             />
           </div>

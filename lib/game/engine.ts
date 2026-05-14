@@ -3,7 +3,7 @@
 // Pas de logique procgen / hex math ici : tout est dans mapgen.ts + hex.ts.
 
 import { BUILDINGS } from "./buildings";
-import { buildingRate, isMaxLevel, upgradeCost } from "./config";
+import { buildingRate, isMaxLevel, sellRefund, upgradeCost } from "./config";
 import { isInsideGrid } from "./hex";
 import { buildMap } from "./mapgen";
 import {
@@ -28,7 +28,7 @@ export function createInitialState(playerId: string, now: number): GameState {
     createdAt: now,
     lastTickAt: now,
     tiles: buildMap(hashString(playerId)),
-    resources: emptyResources(),
+    resources: { ...emptyResources(), gold: 100 },
   };
 }
 
@@ -167,6 +167,44 @@ export function upgradeBuilding(
     ...tile,
     building: { ...building, level: building.level + 1 },
   };
+
+  return {
+    ...state,
+    tiles: nextTiles,
+    resources: nextResources,
+  };
+}
+
+export function sellBuilding(
+  state: GameState,
+  q: number,
+  r: number,
+): GameState {
+  if (!isInsideGrid(q, r)) {
+    throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
+  }
+
+  const index = state.tiles.findIndex((t) => t.q === q && t.r === r);
+  if (index < 0) {
+    throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
+  }
+
+  const tile = state.tiles[index];
+  const building = tile.building;
+  if (building === null) {
+    throw new GameError("NO_BUILDING", "Aucun bâtiment à revendre ici.");
+  }
+
+  const refund = sellRefund(building.kind, building.level);
+  const nextResources: Resources = { ...state.resources };
+  for (const [resource, amount] of Object.entries(refund) as Array<
+    [ResourceKind, number]
+  >) {
+    nextResources[resource] = (nextResources[resource] ?? 0) + amount;
+  }
+
+  const nextTiles = state.tiles.slice();
+  nextTiles[index] = { ...tile, building: null };
 
   return {
     ...state,

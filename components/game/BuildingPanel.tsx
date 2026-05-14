@@ -1,7 +1,12 @@
 "use client";
 
 import { BUILDINGS } from "@/lib/game/buildings";
-import { buildingRate, isMaxLevel, upgradeCost } from "@/lib/game/config";
+import {
+  buildingRate,
+  isMaxLevel,
+  sellRefund,
+  upgradeCost,
+} from "@/lib/game/config";
 import type { BuildingKind, GameState, Tile } from "@/lib/game/types";
 import { canAfford, formatCost } from "./cost";
 import { FarmIcon } from "./icons/FarmIcon";
@@ -25,6 +30,7 @@ type Props = {
   pending: boolean;
   error: string | null;
   onUpgrade: () => void;
+  onSell: () => void;
   onClose: () => void;
 };
 
@@ -38,6 +44,7 @@ export function BuildingPanel({
   pending,
   error,
   onUpgrade,
+  onSell,
   onClose,
 }: Props) {
   // Ressources interpolées en temps réel (boucle rAF partagée avec le HUD) :
@@ -58,6 +65,8 @@ export function BuildingPanel({
   const cost = upgradeCost(building.kind, level);
   const affordable = canAfford(liveResources, cost);
   const canUpgrade = !readOnly && !atMax && affordable && !pending;
+  const refund = sellRefund(building.kind, level);
+  const canSell = !readOnly && !pending;
 
   return (
     <div className="w-72 rounded-md border border-gold/40 bg-parchment/95 p-5 shadow-lg">
@@ -118,6 +127,18 @@ export function BuildingPanel({
               </button>
             </>
           )}
+          <div className="mt-3 flex justify-between font-sans text-sm text-ink/80">
+            <span>Revente</span>
+            <span className="tabular-nums">{formatCost(refund)}</span>
+          </div>
+          <button
+            type="button"
+            disabled={!canSell}
+            onClick={onSell}
+            className="mt-3 w-full rounded-md border border-ink/40 bg-parchment px-5 py-2 font-serif text-lg text-ink/80 transition-colors hover:bg-ink hover:text-parchment disabled:cursor-not-allowed disabled:border-ink/15 disabled:bg-ink/10 disabled:text-ink/40 disabled:hover:bg-ink/10 disabled:hover:text-ink/40"
+          >
+            Vendre
+          </button>
           <div className="mt-1 h-4 font-serif text-xs italic text-blood/80">
             {error ?? " "}
           </div>
