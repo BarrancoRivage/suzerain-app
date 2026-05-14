@@ -305,12 +305,11 @@ export function MineModel() {
 
 // --- Décor périphérique (hors disque jouable) ---
 
-// On évite les DeadTree dans le pool standalone : leur feuillage orange/
-// rouge ressort beaucoup et donne une carte trop automnale. Si on veut en
-// reintroduire ponctuellement il faut les pondérer très faiblement.
+// On évite DeadTree ET TwistedTree dans le pool standalone : leurs
+// feuillages tirent vers le rouge / orange et donnent une carte trop
+// automnale. Seuls CommonTree et Pine = vert franc, cohérent.
 const STANDALONE_TREE_PATHS = [
   ...COMMON_TREES,
-  ...TWISTED_TREES,
   ...PINE_TREES,
 ] as const;
 const STANDALONE_TREE_SCALE = 0.22;

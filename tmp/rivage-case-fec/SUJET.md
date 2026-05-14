@@ -32,31 +32,47 @@ On veut un outil interne pour passer à 2-3 heures.
 
 ## 2. Notre plan comptable (l'essentiel)
 
-Côté Rivage, on utilise une convention PCG adaptée à la gestion locative :
+Côté Rivage, on utilise une convention PCG **adaptée** à la gestion locative —
+elle ressemble au PCG général mais s'en écarte sur plusieurs racines (notamment
+les honoraires et les comptes pivots). Les principales racines à connaître :
 
-| Compte | Quoi | À mapper depuis |
-|--------|------|-----------------|
-| `411xxxxx` | **Propriétaire** (un sous-compte par propriétaire) | son équivalent dans l'ancien logiciel |
-| `419xxxxx` | **Locataire** (un sous-compte par locataire) | idem |
-| `401xxxxx` ou `400xxxxx` | **Fournisseur** (artisan, syndic, assureur…) | idem |
-| `165xxxxx` | **Dépôt de garantie** | rattaché au locataire concerné |
-| `512xxxxx` | **Banque mandant** | la banque où transitent les fonds |
-| `706xxxxx` | **Honoraires** (chiffre d'affaires de l'agence) | famille honoraires de l'ancien |
-| `466xxxxx` | **Provisions / Acomptes** | idem |
+| Racine Rivage | Quoi | À mapper depuis le FEC |
+|---------------|------|------------------------|
+| `411xxxxxx` | **Propriétaire** — un sous-compte par propriétaire (ou par indivision) | le compte propriétaire de l'ancien logiciel |
+| `419xxxxxx` | **Locataire** — un sous-compte par locataire (en réalité par bail) | le compte locataire de l'ancien logiciel |
+| `401xxxxxx` | **Fournisseur** (artisan, syndic, assureur…) | la famille fournisseurs de l'ancien |
+| `1651xxxxx` | **Dépôt de garantie conservé** — rattaché au bail | les comptes DG (souvent `165…`) |
+| `5121xxxxx` | **Banque mandant** — le compte bancaire qui héberge les fonds clients | la banque mandant de l'ancien (souvent `512…`) |
+| `467xxxxxx` | **Honoraires de l'agence** (gestion, GLI, location, EDL…) — c'est le compte de produits, décliné en sous-comptes par type d'honoraire | la famille honoraires (souvent `706…` côté ancien — racine PCG standard) |
+| `4712xxxxx` | **Comptes pivots internes** (fonds à allouer : loyers, provisions, charges, DG…) — comptes techniques d'attente avant ventilation | les comptes d'attente / provisions (souvent `466…` ou `471…`) |
+| `4672` / `4673` | **GLI** (indemnités + reversements) | comptes spécifiques GLI s'il y en a |
+
+> ⚠️ Notre convention diffère du PCG standard sur 2 racines piégeuses :
+> - **Honoraires : `467` chez nous, pas `706`.** La plupart des anciens logiciels
+>   utilisent `706` (produits d'exploitation, PCG général). Il faut donc rerouter.
+> - **Comptes pivots / fonds à allouer : `4712` chez nous, pas `466`.** Ces comptes
+>   internes ne représentent pas une contrepartie tierce, ce sont des sas
+>   techniques utilisés par notre moteur de répartition.
 
 Quelques subtilités à avoir en tête :
 
-- Un **même propriétaire** peut avoir **plusieurs sous-comptes** (un par bien,
-  ou un héritage de structures juridiques multiples).
+- Un **même propriétaire** peut avoir **plusieurs sous-comptes** (cas d'une
+  indivision : un compte par indivisaire, ou un compte mutualisé). Symétriquement,
+  un **locataire** peut apparaître sur plusieurs `419` s'il est sur plusieurs baux.
 - Le `Sens` D/C n'a pas la même signification selon le compte :
   un `411` **débiteur** = le propriétaire nous doit de l'argent (rare, anormal) ;
   un `411` **créditeur** = on lui doit de l'argent (normal en fin de mois).
 - La convention "sous-compte = identifiant interne" est utilisée par la plupart
-  des logiciels, mais le **format de ce sous-compte varie** (numérique, alpha,
-  longueur variable).
+  des logiciels, mais le **format de ce sous-compte varie** énormément
+  (numérique, alpha, longueur variable, parfois encodé sur 12 ou 16 chiffres
+  avec des zéros de bourrage et un suffixe lot).
+- Tous les anciens logiciels n'ont pas de racine `fournisseur` dédiée — certains
+  imputent les dépenses directement sur le compte propriétaire ou via le journal
+  des dépenses. C'est OK, ça veut juste dire qu'il n'y a rien à mapper en `401`.
 
-⚠️ Le client dont tu as le FEC n'utilise pas exactement cette nomenclature.
-À toi de comprendre ce qu'il utilise et comment ça se traduit.
+⚠️ Le client dont tu as le FEC n'utilise pas la nomenclature Rivage.
+À toi de **deviner** sa convention en lisant le fichier, puis de la **traduire**
+vers la nôtre.
 
 ---
 
@@ -79,10 +95,18 @@ est à toi.
 
 ## 4. Inputs
 
-- `fec_client_03_2026.txt` — le FEC, ~11 600 lignes, pipe-délimité, encodage Latin-1
-- `rivage_owners.csv` — export de nos propriétaires (id, nom, email, IBAN…)
-- `rivage_tenants.csv` — export de nos locataires
+- `fec_client_03_2026.txt` — le FEC du client, ~11 600 lignes, pipe-délimité,
+  encodage Latin-1. **Une seule période** (mars 2026), donc volumétrie réaliste
+  mais pas écrasante.
+- `rivage_owners.csv` — export de nos propriétaires existants côté Rivage
+  (id, nom, email, IBAN, **numéro de compte Rivage 411xxxxxx**)
+- `rivage_tenants.csv` — export de nos locataires (idem, **419xxxxxx**)
 - `rivage_suppliers.csv` — export de nos fournisseurs récurrents
+  (idem, **401xxxxxx**)
+
+Les 3 CSV Rivage sont des **données réelles d'un client de prod** — c'est ce que
+notre équipe Customer Success aurait sous la main au moment de la reprise.
+À toi de t'en servir pour rapprocher.
 
 Format FEC standard DGFiP, colonnes :
 

@@ -150,7 +150,11 @@ export function Terrain({ isClickable, onTileClick }: Props) {
           onTileClick(hex[0], hex[1]);
         }}
       >
-        <meshStandardMaterial map={grass} roughness={0.92} />
+        {/* color appliqué en multiply sur la texture Grass.png qui sort
+            naturellement vers le khaki/jaune (Stylized Nature pousse les
+            verts vers le chaud). Ce tint #6F9A55 la ramène vers un vert
+            prairie franc tout en gardant le détail de la texture. */}
+        <meshStandardMaterial map={grass} color="#6F9A55" roughness={0.92} />
       </mesh>
 
       {hovered ? (
