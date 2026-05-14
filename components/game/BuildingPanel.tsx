@@ -1,8 +1,15 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
 import { BUILDINGS } from "@/lib/game/buildings";
 import { buildingRate, isMaxLevel, upgradeCost } from "@/lib/game/config";
-import type { BuildingKind, Resources, Tile } from "@/lib/game/types";
+import type {
+  BuildingKind,
+  GameState,
+  Resources,
+  Tile,
+} from "@/lib/game/types";
 import { canAfford, formatCost } from "./cost";
 import { FarmIcon } from "./icons/FarmIcon";
 import { MineIcon } from "./icons/MineIcon";
@@ -17,12 +24,26 @@ const COLORS: Record<BuildingKind, string> = {
   mine: "text-gold",
 };
 
+// Production par seconde de chaque ressource sur le fief — même formule que
+// l'engine (productionPerSecond) et ResourcePanel.
+function computeRates(state: GameState): Resources {
+  const total: Resources = { grain: 0, gold: 0 };
+  for (const tile of state.tiles) {
+    if (tile.building === null) continue;
+    total[BUILDINGS[tile.building.kind].produces] += buildingRate(
+      tile.building.kind,
+      tile.building.level,
+    );
+  }
+  return total;
+}
+
 type Props = {
   tile: Tile;
+  state: GameState;
   readOnly: boolean;
   pending: boolean;
   error: string | null;
-  resources: Resources;
   onUpgrade: () => void;
   onClose: () => void;
 };
@@ -32,13 +53,37 @@ type Props = {
 // future personnalisation par bâtiment ne touchera que ce composant et la config.
 export function BuildingPanel({
   tile,
+  state,
   readOnly,
   pending,
   error,
-  resources,
   onUpgrade,
   onClose,
 }: Props) {
+  // Ressources interpolées en temps réel (même boucle rAF que ResourcePanel) :
+  // le bouton « Améliorer » se débloque dès que la production atteint le coût,
+  // sans attendre un aller-retour serveur.
+  const [liveResources, setLiveResources] = useState<Resources>(
+    state.resources,
+  );
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const rates = computeRates(state);
+    function loop() {
+      const elapsed = (Date.now() - state.lastTickAt) / 1000;
+      setLiveResources({
+        grain: state.resources.grain + rates.grain * elapsed,
+        gold: state.resources.gold + rates.gold * elapsed,
+      });
+      rafRef.current = requestAnimationFrame(loop);
+    }
+    rafRef.current = requestAnimationFrame(loop);
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, [state]);
+
   const building = tile.building;
   if (building === null) return null;
 
@@ -50,7 +95,7 @@ export function BuildingPanel({
   const currentRate = buildingRate(building.kind, level);
   const nextRate = buildingRate(building.kind, level + 1);
   const cost = upgradeCost(building.kind, level);
-  const affordable = canAfford(resources, cost);
+  const affordable = canAfford(liveResources, cost);
   const canUpgrade = !readOnly && !atMax && affordable && !pending;
 
   return (
@@ -106,7 +151,7 @@ export function BuildingPanel({
                 type="button"
                 disabled={!canUpgrade}
                 onClick={onUpgrade}
-                className="mt-3 w-full rounded-md border border-blood bg-parchment px-5 py-2 font-serif text-lg text-blood transition-colors hover:bg-blood hover:text-parchment disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-parchment disabled:hover:text-blood"
+                className="mt-3 w-full rounded-md border border-blood bg-parchment px-5 py-2 font-serif text-lg text-blood transition-colors hover:bg-blood hover:text-parchment disabled:cursor-not-allowed disabled:border-ink/15 disabled:bg-ink/10 disabled:text-ink/40 disabled:hover:bg-ink/10 disabled:hover:text-ink/40"
               >
                 Améliorer
               </button>

@@ -264,10 +264,10 @@ export function Board() {
           <div className="pointer-events-auto">
             <BuildingPanel
               tile={inspectedTile}
+              state={activeState}
               readOnly={isReadOnly}
               pending={pending}
               error={actionError}
-              resources={activeState.resources}
               onUpgrade={handleUpgrade}
               onClose={() => setInspected(null)}
             />
