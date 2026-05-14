@@ -1,11 +1,8 @@
 "use client";
 
-import { BUILDINGS, RESOURCE_LABELS, type BuildingDef } from "@/lib/game/buildings";
-import type {
-  BuildingKind,
-  ResourceKind,
-  Resources,
-} from "@/lib/game/types";
+import { BUILDINGS, RESOURCE_LABELS } from "@/lib/game/buildings";
+import type { BuildingKind, Resources } from "@/lib/game/types";
+import { canAfford, formatCost } from "./cost";
 import { FarmIcon } from "./icons/FarmIcon";
 import { MineIcon } from "./icons/MineIcon";
 
@@ -70,23 +67,4 @@ export function BuildPanel({ selected, onSelect, disabled, resources }: Props) {
       </div>
     </div>
   );
-}
-
-function canAfford(resources: Resources, cost: BuildingDef["cost"]): boolean {
-  for (const [resource, amount] of Object.entries(cost) as Array<
-    [ResourceKind, number]
-  >) {
-    if (resources[resource] < amount) return false;
-  }
-  return true;
-}
-
-function formatCost(cost: BuildingDef["cost"]): string {
-  const entries = (Object.entries(cost) as Array<[ResourceKind, number]>).filter(
-    ([, amount]) => amount > 0,
-  );
-  if (entries.length === 0) return "gratuit";
-  return entries
-    .map(([r, n]) => `${n} ${RESOURCE_LABELS[r].toLowerCase()}`)
-    .join(" · ");
 }

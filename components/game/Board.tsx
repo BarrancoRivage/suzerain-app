@@ -9,6 +9,7 @@ import {
   loadPlayerStateAction,
   placeBuildingAction,
   setPlayerNameAction,
+  upgradeBuildingAction,
 } from "@/app/play/actions";
 import type {
   BuildingKind,
@@ -16,6 +17,7 @@ import type {
   PlayerSummary,
 } from "@/lib/game/types";
 import { BuildPanel } from "./BuildPanel";
+import { BuildingPanel } from "./BuildingPanel";
 import { NamePrompt } from "./NamePrompt";
 import { PlayerList } from "./PlayerList";
 import { ResourcePanel } from "./ResourcePanel";
@@ -54,6 +56,10 @@ export function Board() {
 
   const [namePromptOpen, setNamePromptOpen] = useState(false);
   const [selectedKind, setSelectedKind] = useState<BuildingKind | null>(null);
+  // Tuile dont le bâtiment est inspecté (panneau latéral). null = aucun.
+  const [inspected, setInspected] = useState<{ q: number; r: number } | null>(
+    null,
+  );
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -85,6 +91,7 @@ export function Board() {
 
   function handleSelectPlayer(targetId: string) {
     setViewError(null);
+    setInspected(null);
     if (ownPlayerId !== null && targetId === ownPlayerId) {
       setViewedState(null);
       setViewedName(null);
@@ -104,6 +111,7 @@ export function Board() {
 
   function handleReturnToOwnFief() {
     setViewError(null);
+    setInspected(null);
     setViewedState(null);
     setViewedName(null);
   }
@@ -124,7 +132,19 @@ export function Board() {
   }
 
   function handleTileClick(q: number, r: number) {
-    if (isReadOnly || selectedKind === null || pending) return;
+    // Mode inspection : aucun bâtiment sélectionné → cliquer un bâtiment ouvre
+    // le panneau latéral (fonctionne aussi en lecture seule, pour visiter).
+    if (selectedKind === null) {
+      const tile = activeState.tiles.find((t) => t.q === q && t.r === r);
+      if (tile?.building) {
+        setActionError(null);
+        setInspected({ q, r });
+      }
+      return;
+    }
+
+    // Mode pose.
+    if (isReadOnly || pending) return;
     const kind = selectedKind;
     setActionError(null);
     startTransition(async () => {
@@ -132,6 +152,20 @@ export function Board() {
       if (res.ok) {
         setOwnState(res.state);
         setSelectedKind(null);
+      } else {
+        setActionError(res.message);
+      }
+    });
+  }
+
+  function handleUpgrade() {
+    if (inspected === null || isReadOnly || pending) return;
+    const { q, r } = inspected;
+    setActionError(null);
+    startTransition(async () => {
+      const res = await upgradeBuildingAction(q, r);
+      if (res.ok) {
+        setOwnState(res.state);
       } else {
         setActionError(res.message);
       }
@@ -159,13 +193,26 @@ export function Board() {
   const activeState = viewedState ?? ownState;
 
   const isClickable = (q: number, r: number): boolean => {
-    if (isReadOnly || selectedKind === null || pending) return false;
+    if (pending) return false;
     const tile = activeState.tiles.find((t) => t.q === q && t.r === r);
     if (!tile) return false;
+    // Mode inspection : tout bâtiment est cliquable, même en lecture seule.
+    if (selectedKind === null) return tile.building !== null;
+    // Mode pose : tuile vide et constructible, sur son propre fief.
+    if (isReadOnly) return false;
     if (tile.biome === "water") return false;
     if (tile.path) return false;
     return tile.building === null;
   };
+
+  // Re-dérivée à chaque render depuis activeState : le panneau reflète ainsi le
+  // niveau à jour après une amélioration.
+  const inspectedTile =
+    inspected === null
+      ? null
+      : activeState.tiles.find(
+          (t) => t.q === inspected.q && t.r === inspected.r,
+        ) ?? null;
 
   const statusMessage = viewError ?? actionError;
 
@@ -211,6 +258,22 @@ export function Board() {
           {statusMessage ?? " "}
         </div>
       </div>
+
+      {inspectedTile?.building && (
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 flex items-center px-6">
+          <div className="pointer-events-auto">
+            <BuildingPanel
+              tile={inspectedTile}
+              state={activeState}
+              readOnly={isReadOnly}
+              pending={pending}
+              error={actionError}
+              onUpgrade={handleUpgrade}
+              onClose={() => setInspected(null)}
+            />
+          </div>
+        </div>
+      )}
 
       {namePromptOpen && (
         <NamePrompt

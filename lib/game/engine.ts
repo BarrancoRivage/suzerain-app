@@ -3,6 +3,7 @@
 // Pas de logique procgen / hex math ici : tout est dans mapgen.ts + hex.ts.
 
 import { BUILDINGS } from "./buildings";
+import { buildingRate, isMaxLevel, upgradeCost } from "./config";
 import { isInsideGrid } from "./hex";
 import { buildMap } from "./mapgen";
 import { hashString } from "./rng";
@@ -35,7 +36,8 @@ export function tick(state: GameState, now: number): GameState {
   for (const tile of state.tiles) {
     if (tile.building === null) continue;
     const def = BUILDINGS[tile.building.kind];
-    produced[def.produces] += def.ratePerSecond * elapsedSeconds;
+    const rate = buildingRate(tile.building.kind, tile.building.level);
+    produced[def.produces] += rate * elapsedSeconds;
   }
 
   return {
@@ -98,7 +100,67 @@ export function placeBuilding(
   const nextTiles = state.tiles.slice();
   nextTiles[index] = {
     ...tile,
-    building: { kind, placedAt: state.lastTickAt },
+    building: { kind, placedAt: state.lastTickAt, level: 1 },
+  };
+
+  return {
+    ...state,
+    tiles: nextTiles,
+    resources: nextResources,
+  };
+}
+
+export function upgradeBuilding(
+  state: GameState,
+  q: number,
+  r: number,
+): GameState {
+  if (!isInsideGrid(q, r)) {
+    throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
+  }
+
+  const index = state.tiles.findIndex((t) => t.q === q && t.r === r);
+  if (index < 0) {
+    throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
+  }
+
+  const tile = state.tiles[index];
+  const building = tile.building;
+  if (building === null) {
+    throw new GameError("NO_BUILDING", "Aucun bâtiment à améliorer ici.");
+  }
+  if (isMaxLevel(building.kind, building.level)) {
+    throw new GameError(
+      "MAX_LEVEL",
+      "Ce bâtiment est déjà au niveau maximal.",
+    );
+  }
+
+  const cost = upgradeCost(building.kind, building.level);
+  for (const [resource, amount] of Object.entries(cost) as Array<
+    [ResourceKind, number]
+  >) {
+    if ((state.resources[resource] ?? 0) < amount) {
+      throw new GameError(
+        "INSUFFICIENT_RESOURCES",
+        `Ressources insuffisantes pour améliorer ${BUILDINGS[
+          building.kind
+        ].label.toLowerCase()}.`,
+      );
+    }
+  }
+
+  const nextResources: Resources = { ...state.resources };
+  for (const [resource, amount] of Object.entries(cost) as Array<
+    [ResourceKind, number]
+  >) {
+    nextResources[resource] = (nextResources[resource] ?? 0) - amount;
+  }
+
+  const nextTiles = state.tiles.slice();
+  nextTiles[index] = {
+    ...tile,
+    building: { ...building, level: building.level + 1 },
   };
 
   return {
@@ -113,7 +175,10 @@ export function productionPerSecond(state: GameState): Resources {
   for (const tile of state.tiles) {
     if (tile.building === null) continue;
     const def = BUILDINGS[tile.building.kind];
-    total[def.produces] += def.ratePerSecond;
+    total[def.produces] += buildingRate(
+      tile.building.kind,
+      tile.building.level,
+    );
   }
   return total;
 }

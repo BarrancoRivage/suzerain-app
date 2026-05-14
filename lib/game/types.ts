@@ -1,5 +1,5 @@
 export const GRID_RADIUS = 6;
-export const STATE_VERSION = 6;
+export const STATE_VERSION = 7;
 
 export type ResourceKind = "grain" | "gold";
 
@@ -10,6 +10,7 @@ export type Biome = "plain" | "forest" | "hill" | "water";
 export type Building = {
   kind: BuildingKind;
   placedAt: number;
+  level: number;
 };
 
 // Chemin (rivière ou route) traversant une tuile. inEdge et outEdge sont des

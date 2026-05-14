@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { Group } from "three";
+import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 
 import { hashCoord } from "@/lib/game/rng";
@@ -80,7 +81,25 @@ export function HexTile({ tile, clickable, onClick }: Props) {
         </group>
       )}
       {tile.biome === "water" && <WaterTopDressing tile={tile} />}
+      {tile.building && <BuildingLevelBadge level={tile.building.level} />}
     </group>
+  );
+}
+
+// Badge de niveau flottant au-dessus d'un bâtiment. Rendu via un overlay DOM
+// (drei <Html>) ancré au repère de la tuile — il suit donc le hover lift.
+function BuildingLevelBadge({ level }: { level: number }) {
+  return (
+    <Html
+      position={[0, 1.7, 0]}
+      center
+      zIndexRange={[10, 0]}
+      className="pointer-events-none select-none"
+    >
+      <div className="whitespace-nowrap rounded-full border border-gold/70 bg-parchment px-2 py-0.5 font-serif text-sm font-semibold leading-none text-ink shadow-sm tabular-nums">
+        {level}
+      </div>
+    </Html>
   );
 }
 
