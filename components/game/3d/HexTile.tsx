@@ -16,6 +16,8 @@ import {
   HexRoadTile,
   HexWaterTile,
   HillsDecor,
+  HouseModel,
+  LumberjackModel,
   MineModel,
   WaterDecor,
 } from "./models/Models";
@@ -124,8 +126,16 @@ function TopDressing({ tile }: { tile: Tile }) {
   const seed = hashCoord(tile.q, tile.r);
 
   if (tile.building) {
-    if (tile.building.kind === "farm") return <FarmModel seed={seed} />;
-    return <MineModel />;
+    switch (tile.building.kind) {
+      case "farm":
+        return <FarmModel seed={seed} />;
+      case "lumberjack":
+        return <LumberjackModel />;
+      case "house":
+        return <HouseModel />;
+      default:
+        return <MineModel />;
+    }
   }
 
   if (tile.path) return null;

@@ -28,6 +28,7 @@ const PATHS = {
   homeA: "/models/kaykit/buildings_red/building_home_A_red.gltf",
   homeB: "/models/kaykit/buildings_red/building_home_B_red.gltf",
   mine: "/models/kaykit/buildings_red/building_mine_red.gltf",
+  lumbermill: "/models/kaykit/buildings_red/building_lumbermill_red.gltf",
 
   // Décors qui se posent SUR une tuile hex_grass (Y commence à 0)
   forestSmall: "/models/kaykit/nature/trees_A_small.gltf",
@@ -232,6 +233,16 @@ export function FarmModel({ seed }: { seed: number }) {
 
 export function MineModel() {
   return <KayKit path={PATHS.mine} />;
+}
+
+export function LumberjackModel() {
+  return <KayKit path={PATHS.lumbermill} />;
+}
+
+// Pas de modèle « maison » dédié distinct des home A/B (déjà pris par la
+// ferme) — on réutilise home A en attendant un asset propre.
+export function HouseModel() {
+  return <KayKit path={PATHS.homeA} />;
 }
 
 // --- Décors standalone (sol périphérique, pas sur tuile hex). ---

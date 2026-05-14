@@ -2,10 +2,12 @@
 
 import { GameError } from "@/lib/game/types";
 import {
+  assignWorker,
   createInitialState,
   placeBuilding,
   sellBuilding,
   tick,
+  unassignWorker,
   upgradeBuilding,
 } from "@/lib/game/engine";
 import type {
@@ -127,6 +129,44 @@ export async function sellBuildingAction(
     const base = existing ?? createInitialState(playerId, now);
     const ticked = tick(base, now);
     const updated = sellBuilding(ticked, q, r);
+    await saveState(updated);
+    return { ok: true, state: updated };
+  } catch (error) {
+    return toErrorResult(error);
+  }
+}
+
+export async function assignWorkerAction(
+  q: number,
+  r: number,
+): Promise<GameActionResult> {
+  try {
+    // playerId vient TOUJOURS du cookie — on n'assigne que sur son propre fief.
+    const playerId = await getOrCreatePlayerId();
+    const now = Date.now();
+    const existing = await loadState(playerId);
+    const base = existing ?? createInitialState(playerId, now);
+    const ticked = tick(base, now);
+    const updated = assignWorker(ticked, q, r);
+    await saveState(updated);
+    return { ok: true, state: updated };
+  } catch (error) {
+    return toErrorResult(error);
+  }
+}
+
+export async function unassignWorkerAction(
+  q: number,
+  r: number,
+): Promise<GameActionResult> {
+  try {
+    // playerId vient TOUJOURS du cookie — on ne désassigne que son propre fief.
+    const playerId = await getOrCreatePlayerId();
+    const now = Date.now();
+    const existing = await loadState(playerId);
+    const base = existing ?? createInitialState(playerId, now);
+    const ticked = tick(base, now);
+    const updated = unassignWorker(ticked, q, r);
     await saveState(updated);
     return { ok: true, state: updated };
   } catch (error) {
