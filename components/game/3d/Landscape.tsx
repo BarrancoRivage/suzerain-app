@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { PlaneGeometry } from "three";
 
 import { mulberry32, pickWeighted } from "@/lib/game/rng";
@@ -11,6 +11,7 @@ import {
   StandaloneRock,
   StandaloneTree,
 } from "./models/Models";
+import { useTerrainMaterial } from "./TerrainMaterial";
 
 // Sol périphérique avec relief. PlaneGeometry 96² sommets, chaque vertex
 // déplacé en Y par une somme de sinus pondérée par un easing radial : flat
@@ -87,23 +88,48 @@ function buildGroundGeometry() {
 
 export function Landscape() {
   const decor = useMemo(buildDecor, []);
-  const groundGeometry = useMemo(buildGroundGeometry, []);
-
   return (
     <>
-      <mesh
-        geometry={groundGeometry}
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, TILE_BOTTOM_Y, 0]}
-        receiveShadow
-      >
-        <meshStandardMaterial color={GROUND_COLOR} roughness={1} flatShading />
-      </mesh>
+      <Suspense fallback={<FallbackGround />}>
+        <TerrainGround />
+      </Suspense>
 
       {decor.map((item, i) => (
         <DecorObject key={i} item={item} />
       ))}
     </>
+  );
+}
+
+// Sol périphérique avec splatmap PBR (herbe procédurale + terre + roche).
+// La matière est suspended-loaded — pendant le téléchargement des textures
+// MegaKit, FallbackGround affiche un plan vert uni pour ne pas avoir de
+// trou visuel.
+function TerrainGround() {
+  const groundGeometry = useMemo(buildGroundGeometry, []);
+  const material = useTerrainMaterial();
+  return (
+    <mesh
+      geometry={groundGeometry}
+      material={material}
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, TILE_BOTTOM_Y, 0]}
+      receiveShadow
+    />
+  );
+}
+
+function FallbackGround() {
+  const groundGeometry = useMemo(buildGroundGeometry, []);
+  return (
+    <mesh
+      geometry={groundGeometry}
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, TILE_BOTTOM_Y, 0]}
+      receiveShadow
+    >
+      <meshStandardMaterial color={GROUND_COLOR} roughness={1} flatShading />
+    </mesh>
   );
 }
 

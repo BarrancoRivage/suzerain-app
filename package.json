@@ -16,6 +16,7 @@
     "next": "15.1.11",
     "postprocessing": "^6.36.0",
     "pg": "^8.13.1",
+    "pg-connection-string": "^2.7.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "three": "^0.170.0"
