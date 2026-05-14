@@ -5,6 +5,7 @@ import {
   createInitialState,
   placeBuilding,
   tick,
+  upgradeBuilding,
 } from "@/lib/game/engine";
 import type {
   BuildingKind,
@@ -87,6 +88,25 @@ export async function placeBuildingAction(
     const base = existing ?? createInitialState(playerId, now);
     const ticked = tick(base, now);
     const updated = placeBuilding(ticked, q, r, kind);
+    await saveState(updated);
+    return { ok: true, state: updated };
+  } catch (error) {
+    return toErrorResult(error);
+  }
+}
+
+export async function upgradeBuildingAction(
+  q: number,
+  r: number,
+): Promise<GameActionResult> {
+  try {
+    // playerId vient TOUJOURS du cookie — on n'améliore que son propre fief.
+    const playerId = await getOrCreatePlayerId();
+    const now = Date.now();
+    const existing = await loadState(playerId);
+    const base = existing ?? createInitialState(playerId, now);
+    const ticked = tick(base, now);
+    const updated = upgradeBuilding(ticked, q, r);
     await saveState(updated);
     return { ok: true, state: updated };
   } catch (error) {

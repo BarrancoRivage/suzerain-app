@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { BUILDINGS, RESOURCE_LABELS } from "@/lib/game/buildings";
+import { buildingRate } from "@/lib/game/config";
 import type { GameState, ResourceKind, Resources } from "@/lib/game/types";
 import { GoldIcon } from "./icons/GoldIcon";
 import { GrainIcon } from "./icons/GrainIcon";
@@ -22,7 +23,10 @@ function computeRates(state: GameState): Resources {
   for (const tile of state.tiles) {
     if (tile.building === null) continue;
     const def = BUILDINGS[tile.building.kind];
-    total[def.produces] += def.ratePerSecond;
+    total[def.produces] += buildingRate(
+      tile.building.kind,
+      tile.building.level,
+    );
   }
   return total;
 }

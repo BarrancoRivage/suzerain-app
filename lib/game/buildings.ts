@@ -1,3 +1,4 @@
+import { GAME_CONFIG } from "./config";
 import type { BuildingKind, ResourceKind } from "./types";
 
 export type BuildingDef = {
@@ -9,24 +10,25 @@ export type BuildingDef = {
   readonly cost: Readonly<Partial<Record<ResourceKind, number>>>;
 };
 
-export const BUILDINGS: Readonly<Record<BuildingKind, BuildingDef>> = {
-  farm: {
-    kind: "farm",
-    label: "Ferme",
-    description: "Produit du grain à un rythme régulier.",
-    produces: "grain",
-    ratePerSecond: 0.1,
-    cost: { grain: 0 },
-  },
-  mine: {
-    kind: "mine",
-    label: "Mine",
-    description: "Extrait de l'or, lentement mais sûrement.",
-    produces: "gold",
-    ratePerSecond: 0.05,
-    cost: { grain: 20 },
-  },
-};
+// `BUILDINGS` est dérivé de GAME_CONFIG (lib/game/config.ts) : il expose les
+// valeurs de pose (niveau 1) sous la forme attendue par l'UI de construction.
+// Toute valeur d'équilibrage se modifie dans config.ts, jamais ici.
+export const BUILDINGS: Readonly<Record<BuildingKind, BuildingDef>> =
+  Object.fromEntries(
+    (Object.entries(GAME_CONFIG) as Array<
+      [BuildingKind, (typeof GAME_CONFIG)[BuildingKind]]
+    >).map(([kind, cfg]) => [
+      kind,
+      {
+        kind,
+        label: cfg.label,
+        description: cfg.description,
+        produces: cfg.produces,
+        ratePerSecond: cfg.baseRatePerSecond,
+        cost: cfg.baseCost,
+      } satisfies BuildingDef,
+    ]),
+  ) as Record<BuildingKind, BuildingDef>;
 
 export const RESOURCE_LABELS: Readonly<Record<ResourceKind, string>> = {
   grain: "Grain",
