@@ -6,10 +6,14 @@
 // Ne tape jamais le pooler Postgres directement : on passe par leur API REST
 // — TLS standard, pas de cert maison à gérer. C'est ce qui résout le bug
 // récurrent "self-signed certificate in certificate chain".
+//
+// La table `players` doit être créée à la main une fois dans le SQL editor
+// Supabase (cf. docker/postgres/init/002_players.sql) : pas d'auto-création
+// de schéma en prod.
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-import { STATE_VERSION, type GameState } from "../game/types";
+import { STATE_VERSION, type GameState, type PlayerSummary } from "../game/types";
 
 let cachedClient: SupabaseClient | null = null;
 
@@ -58,4 +62,71 @@ export async function saveStateSupabase(state: GameState): Promise<void> {
   if (error) {
     throw new Error(`Supabase saveState: ${error.message}`);
   }
+}
+
+export async function getPlayerNameSupabase(
+  playerId: string,
+): Promise<string | null> {
+  const { data, error } = await getClient()
+    .from("players")
+    .select("name")
+    .eq("player_id", playerId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Supabase getPlayerName: ${error.message}`);
+  }
+  return data ? (data.name as string) : null;
+}
+
+export async function setPlayerNameSupabase(
+  playerId: string,
+  name: string,
+): Promise<void> {
+  const { error } = await getClient().from("players").upsert({
+    player_id: playerId,
+    name,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    throw new Error(`Supabase setPlayerName: ${error.message}`);
+  }
+}
+
+export async function listPlayersSupabase(): Promise<PlayerSummary[]> {
+  // Pas de FK déclarée entre game_states et players : on récupère les deux
+  // ensembles et on fait la jointure en mémoire.
+  const client = getClient();
+  const [statesRes, playersRes] = await Promise.all([
+    client.from("game_states").select("player_id"),
+    client.from("players").select("player_id, name"),
+  ]);
+
+  if (statesRes.error) {
+    throw new Error(`Supabase listPlayers (states): ${statesRes.error.message}`);
+  }
+  if (playersRes.error) {
+    throw new Error(
+      `Supabase listPlayers (players): ${playersRes.error.message}`,
+    );
+  }
+
+  const names = new Map<string, string>();
+  for (const row of playersRes.data ?? []) {
+    names.set(row.player_id as string, row.name as string);
+  }
+
+  const summaries: PlayerSummary[] = (statesRes.data ?? []).map((row) => {
+    const playerId = row.player_id as string;
+    return { playerId, name: names.get(playerId) ?? null };
+  });
+
+  summaries.sort((a, b) => {
+    if (a.name === null) return b.name === null ? 0 : 1;
+    if (b.name === null) return -1;
+    return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+  });
+
+  return summaries;
 }
