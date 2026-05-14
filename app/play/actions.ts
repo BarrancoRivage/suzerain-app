@@ -4,6 +4,7 @@ import { GameError } from "@/lib/game/types";
 import {
   createInitialState,
   placeBuilding,
+  sellBuilding,
   tick,
   upgradeBuilding,
 } from "@/lib/game/engine";
@@ -107,6 +108,25 @@ export async function upgradeBuildingAction(
     const base = existing ?? createInitialState(playerId, now);
     const ticked = tick(base, now);
     const updated = upgradeBuilding(ticked, q, r);
+    await saveState(updated);
+    return { ok: true, state: updated };
+  } catch (error) {
+    return toErrorResult(error);
+  }
+}
+
+export async function sellBuildingAction(
+  q: number,
+  r: number,
+): Promise<GameActionResult> {
+  try {
+    // playerId vient TOUJOURS du cookie — on ne revend que sur son propre fief.
+    const playerId = await getOrCreatePlayerId();
+    const now = Date.now();
+    const existing = await loadState(playerId);
+    const base = existing ?? createInitialState(playerId, now);
+    const ticked = tick(base, now);
+    const updated = sellBuilding(ticked, q, r);
     await saveState(updated);
     return { ok: true, state: updated };
   } catch (error) {
