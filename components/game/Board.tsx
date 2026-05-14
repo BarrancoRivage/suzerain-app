@@ -19,13 +19,10 @@ import type {
   GameState,
   PlayerSummary,
 } from "@/lib/game/types";
-import { BuildPanel } from "./BuildPanel";
-import { BuildingPanel } from "./BuildingPanel";
+import { ActionPanel } from "./ActionPanel";
 import { NamePrompt } from "./NamePrompt";
-import { PlayerList } from "./PlayerList";
-import { ResourcePanel } from "./ResourcePanel";
+import { TopBar } from "./TopBar";
 import { TreasuryModal } from "./TreasuryModal";
-import { ViewingBanner } from "./ViewingBanner";
 
 // Canvas WebGL : importé dynamiquement, ssr:false. Le bundle three+R3F+drei
 // ne charge qu'à l'arrivée sur /play, jamais sur la landing.
@@ -61,7 +58,10 @@ export function Board() {
   const [namePromptOpen, setNamePromptOpen] = useState(false);
   const [treasuryOpen, setTreasuryOpen] = useState(false);
   const [selectedKind, setSelectedKind] = useState<BuildingKind | null>(null);
-  // Tuile dont le bâtiment est inspecté (panneau latéral). null = aucun.
+  // Menu de construction déplié dans le panneau d'actions. Invariant :
+  // selectedKind !== null implique buildMenuOpen === true.
+  const [buildMenuOpen, setBuildMenuOpen] = useState(false);
+  // Tuile dont le bâtiment est inspecté (panneau d'actions). null = aucun.
   const [inspected, setInspected] = useState<{ q: number; r: number } | null>(
     null,
   );
@@ -94,9 +94,21 @@ export function Board() {
   const isReadOnly =
     viewedState !== null && viewedState.playerId !== ownPlayerId;
 
+  function handleOpenBuildMenu() {
+    setInspected(null);
+    setActionError(null);
+    setBuildMenuOpen(true);
+  }
+
+  function handleCloseBuildMenu() {
+    setSelectedKind(null);
+    setBuildMenuOpen(false);
+  }
+
   function handleSelectPlayer(targetId: string) {
     setViewError(null);
     setInspected(null);
+    setBuildMenuOpen(false);
     if (ownPlayerId !== null && targetId === ownPlayerId) {
       setViewedState(null);
       setViewedName(null);
@@ -117,6 +129,8 @@ export function Board() {
   function handleReturnToOwnFief() {
     setViewError(null);
     setInspected(null);
+    setBuildMenuOpen(false);
+    setSelectedKind(null);
     setViewedState(null);
     setViewedName(null);
   }
@@ -143,6 +157,7 @@ export function Board() {
       const tile = activeState.tiles.find((t) => t.q === q && t.r === r);
       if (tile?.building) {
         setActionError(null);
+        setBuildMenuOpen(false);
         setInspected({ q, r });
       }
       return;
@@ -263,8 +278,6 @@ export function Board() {
           (t) => t.q === inspected.q && t.r === inspected.r,
         ) ?? null;
 
-  const statusMessage = viewError ?? actionError;
-
   return (
     <>
       <HexBoard
@@ -273,62 +286,41 @@ export function Board() {
         onTileClick={handleTileClick}
       />
 
-      <PlayerList
+      <TopBar
+        state={activeState}
         players={players}
         activePlayerId={viewedState ? viewedState.playerId : ownPlayerId}
         ownPlayerId={ownPlayerId}
-        onSelect={handleSelectPlayer}
+        ownName={ownName}
+        onSelectPlayer={handleSelectPlayer}
+        onOpenTreasury={() => setTreasuryOpen(true)}
         onEditName={() => {
           setNameError(null);
           setNamePromptOpen(true);
         }}
       />
 
-      <div className="pointer-events-none absolute inset-x-0 top-20 z-10 flex justify-center px-6">
-        <div className="pointer-events-auto">
-          <ResourcePanel
-            state={activeState}
-            onOpenTreasury={() => setTreasuryOpen(true)}
-          />
-        </div>
-      </div>
-
-      <div className="pointer-events-none absolute inset-x-0 bottom-8 z-10 flex flex-col items-center gap-3 px-6">
-        <div className="pointer-events-auto">
-          {isReadOnly ? (
-            <ViewingBanner name={viewedName} onReturn={handleReturnToOwnFief} />
-          ) : (
-            <BuildPanel
-              selected={selectedKind}
-              onSelect={setSelectedKind}
-              disabled={pending}
-              resources={activeState.resources}
-            />
-          )}
-        </div>
-        <div className="h-4 font-serif text-xs italic text-blood/80">
-          {statusMessage ?? " "}
-        </div>
-      </div>
-
-      {inspectedTile?.building && (
-        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 flex items-center px-6">
-          <div className="pointer-events-auto">
-            <BuildingPanel
-              tile={inspectedTile}
-              state={activeState}
-              readOnly={isReadOnly}
-              pending={pending}
-              error={actionError}
-              onUpgrade={handleUpgrade}
-              onSell={handleSell}
-              onClose={() => setInspected(null)}
-              onAssignWorker={handleAssignWorker}
-              onUnassignWorker={handleUnassignWorker}
-            />
-          </div>
-        </div>
-      )}
+      <ActionPanel
+        isReadOnly={isReadOnly}
+        pending={pending}
+        buildMenuOpen={buildMenuOpen}
+        onOpenBuildMenu={handleOpenBuildMenu}
+        onCloseBuildMenu={handleCloseBuildMenu}
+        selectedKind={selectedKind}
+        onSelect={setSelectedKind}
+        resources={activeState.resources}
+        inspectedTile={inspectedTile}
+        state={activeState}
+        onUpgrade={handleUpgrade}
+        onSell={handleSell}
+        onCloseInspect={() => setInspected(null)}
+        onAssignWorker={handleAssignWorker}
+        onUnassignWorker={handleUnassignWorker}
+        viewedName={viewedName}
+        onReturn={handleReturnToOwnFief}
+        viewError={viewError}
+        actionError={actionError}
+      />
 
       {namePromptOpen && (
         <NamePrompt

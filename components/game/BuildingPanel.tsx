@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { BUILDINGS } from "@/lib/game/buildings";
 import {
   buildingRate,
@@ -47,9 +46,10 @@ type Props = {
   onUnassignWorker: () => void;
 };
 
-// Panneau latéral non-bloquant : inspecte un bâtiment, permet de l'améliorer,
-// de le revendre et — pour les bâtiments de production — d'y assigner des
-// ouvriers. Tout est dérivé de `kind` + `level` + `workers` via GAME_CONFIG.
+// Corps du mode inspection du panneau d'actions : inspecte un bâtiment, permet
+// de l'améliorer, de le revendre et — pour les bâtiments de production — d'y
+// assigner des ouvriers. Tout est dérivé de `kind` + `level` + `workers` via
+// GAME_CONFIG. Le positionnement et la coquille sont portés par ActionPanel.
 export function BuildingPanel({
   tile,
   state,
@@ -66,24 +66,6 @@ export function BuildingPanel({
   // le bouton « Améliorer » se débloque dès que la production atteint le coût,
   // sans attendre un aller-retour serveur.
   const { displayed: liveResources } = useAnimatedResources(state);
-
-  // Clic en dehors du panneau → fermeture. On écoute `pointerdown` au niveau du
-  // document : tout clic dont la cible n'est pas dans le panneau le referme
-  // (cliquer un autre bâtiment le rouvre aussitôt via le handler du plateau).
-  const panelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function handlePointerDown(event: PointerEvent) {
-      if (
-        panelRef.current &&
-        !panelRef.current.contains(event.target as Node)
-      ) {
-        onClose();
-      }
-    }
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () =>
-      document.removeEventListener("pointerdown", handlePointerDown);
-  }, [onClose]);
 
   const building = tile.building;
   if (building === null) return null;
@@ -118,10 +100,7 @@ export function BuildingPanel({
   );
 
   return (
-    <div
-      ref={panelRef}
-      className="w-72 rounded-md border border-gold/40 bg-parchment/95 p-5 shadow-lg"
-    >
+    <div>
       <div className="flex items-start gap-3">
         <Icon className={`h-9 w-9 ${color} pixelated`} />
         <div className="flex-1">
