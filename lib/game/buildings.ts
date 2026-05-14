@@ -6,8 +6,11 @@ export type BuildingDef = {
   readonly label: string;
   readonly description: string;
   readonly produces: ResourceKind;
+  // Taux de production PAR OUVRIER au niveau 1 (0 pour un bâtiment de logement).
   readonly ratePerSecond: number;
   readonly cost: Readonly<Partial<Record<ResourceKind, number>>>;
+  // Bâtiments de logement uniquement : population fournie à la pose (niveau 1).
+  readonly populationCapacity?: number;
 };
 
 // `BUILDINGS` est dérivé de GAME_CONFIG (lib/game/config.ts) : il expose les
@@ -26,6 +29,7 @@ export const BUILDINGS: Readonly<Record<BuildingKind, BuildingDef>> =
         produces: cfg.produces,
         ratePerSecond: cfg.baseRatePerSecond,
         cost: cfg.baseCost,
+        populationCapacity: cfg.populationCapacity,
       } satisfies BuildingDef,
     ]),
   ) as Record<BuildingKind, BuildingDef>;

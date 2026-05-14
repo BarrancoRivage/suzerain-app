@@ -4,12 +4,14 @@ import dynamic from "next/dynamic";
 import { useEffect, useState, useTransition } from "react";
 
 import {
+  assignWorkerAction,
   listPlayersAction,
   loadGameAction,
   loadPlayerStateAction,
   placeBuildingAction,
   sellBuildingAction,
   setPlayerNameAction,
+  unassignWorkerAction,
   upgradeBuildingAction,
 } from "@/app/play/actions";
 import type {
@@ -191,6 +193,34 @@ export function Board() {
     });
   }
 
+  function handleAssignWorker() {
+    if (inspected === null || isReadOnly || pending) return;
+    const { q, r } = inspected;
+    setActionError(null);
+    startTransition(async () => {
+      const res = await assignWorkerAction(q, r);
+      if (res.ok) {
+        setOwnState(res.state);
+      } else {
+        setActionError(res.message);
+      }
+    });
+  }
+
+  function handleUnassignWorker() {
+    if (inspected === null || isReadOnly || pending) return;
+    const { q, r } = inspected;
+    setActionError(null);
+    startTransition(async () => {
+      const res = await unassignWorkerAction(q, r);
+      if (res.ok) {
+        setOwnState(res.state);
+      } else {
+        setActionError(res.message);
+      }
+    });
+  }
+
   if (loadError !== null) {
     return (
       <div className="absolute inset-0 flex items-center justify-center">
@@ -293,6 +323,8 @@ export function Board() {
               onUpgrade={handleUpgrade}
               onSell={handleSell}
               onClose={() => setInspected(null)}
+              onAssignWorker={handleAssignWorker}
+              onUnassignWorker={handleUnassignWorker}
             />
           </div>
         </div>

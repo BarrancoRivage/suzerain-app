@@ -5,16 +5,22 @@ import { RESOURCE_LABELS } from "@/lib/game/resources";
 import type { BuildingKind, Resources } from "@/lib/game/types";
 import { canAfford, formatCost } from "./cost";
 import { FarmIcon } from "./icons/FarmIcon";
+import { HouseIcon } from "./icons/HouseIcon";
+import { LumberjackIcon } from "./icons/LumberjackIcon";
 import { MineIcon } from "./icons/MineIcon";
 
 const ICONS: Record<BuildingKind, typeof FarmIcon> = {
   farm: FarmIcon,
   mine: MineIcon,
+  lumberjack: LumberjackIcon,
+  house: HouseIcon,
 };
 
 const COLORS: Record<BuildingKind, string> = {
   farm: "text-blood",
   mine: "text-gold",
+  lumberjack: "text-amber-800",
+  house: "text-stone-500",
 };
 
 type Props = {
@@ -54,9 +60,18 @@ export function BuildPanel({ selected, onSelect, disabled, resources }: Props) {
               <div className="text-left">
                 <div className="font-serif text-lg text-ink">{def.label}</div>
                 <div className="text-xs text-ink/60 font-sans">
-                  +{def.ratePerSecond.toFixed(2)}{" "}
-                  {RESOURCE_LABELS[def.produces].toLowerCase()} / s ·{" "}
-                  {formatCost(def.cost)}
+                  {def.populationCapacity != null ? (
+                    <>
+                      +{def.populationCapacity} population ·{" "}
+                      {formatCost(def.cost)}
+                    </>
+                  ) : (
+                    <>
+                      +{def.ratePerSecond.toFixed(2)}{" "}
+                      {RESOURCE_LABELS[def.produces].toLowerCase()} / s par
+                      ouvrier · {formatCost(def.cost)}
+                    </>
+                  )}
                 </div>
               </div>
             </button>

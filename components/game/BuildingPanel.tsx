@@ -3,24 +3,34 @@
 import { BUILDINGS } from "@/lib/game/buildings";
 import {
   buildingRate,
+  isHousing,
   isMaxLevel,
+  populationCapacityAt,
   sellRefund,
   upgradeCost,
+  workerCapacity,
 } from "@/lib/game/config";
+import { availablePopulation, effectiveRate } from "@/lib/game/engine";
 import type { BuildingKind, GameState, Tile } from "@/lib/game/types";
 import { canAfford, formatCost } from "./cost";
 import { FarmIcon } from "./icons/FarmIcon";
+import { HouseIcon } from "./icons/HouseIcon";
+import { LumberjackIcon } from "./icons/LumberjackIcon";
 import { MineIcon } from "./icons/MineIcon";
 import { useAnimatedResources } from "./useAnimatedResources";
 
 const ICONS: Record<BuildingKind, typeof FarmIcon> = {
   farm: FarmIcon,
   mine: MineIcon,
+  lumberjack: LumberjackIcon,
+  house: HouseIcon,
 };
 
 const COLORS: Record<BuildingKind, string> = {
   farm: "text-blood",
   mine: "text-gold",
+  lumberjack: "text-amber-800",
+  house: "text-stone-500",
 };
 
 type Props = {
@@ -32,11 +42,13 @@ type Props = {
   onUpgrade: () => void;
   onSell: () => void;
   onClose: () => void;
+  onAssignWorker: () => void;
+  onUnassignWorker: () => void;
 };
 
-// Panneau latéral non-bloquant : inspecte un bâtiment et permet de l'améliorer.
-// Tout est dérivé de `kind` + `level` via GAME_CONFIG (lib/game/config.ts) — la
-// future personnalisation par bâtiment ne touchera que ce composant et la config.
+// Panneau latéral non-bloquant : inspecte un bâtiment, permet de l'améliorer,
+// de le revendre et — pour les bâtiments de production — d'y assigner des
+// ouvriers. Tout est dérivé de `kind` + `level` + `workers` via GAME_CONFIG.
 export function BuildingPanel({
   tile,
   state,
@@ -46,6 +58,8 @@ export function BuildingPanel({
   onUpgrade,
   onSell,
   onClose,
+  onAssignWorker,
+  onUnassignWorker,
 }: Props) {
   // Ressources interpolées en temps réel (boucle rAF partagée avec le HUD) :
   // le bouton « Améliorer » se débloque dès que la production atteint le coût,
@@ -60,13 +74,29 @@ export function BuildingPanel({
   const color = COLORS[building.kind];
   const level = building.level;
   const atMax = isMaxLevel(building.kind, level);
-  const currentRate = buildingRate(building.kind, level);
-  const nextRate = buildingRate(building.kind, level + 1);
   const cost = upgradeCost(building.kind, level);
   const affordable = canAfford(liveResources, cost);
   const canUpgrade = !readOnly && !atMax && affordable && !pending;
   const refund = sellRefund(building.kind, level);
   const canSell = !readOnly && !pending;
+
+  const housing = isHousing(building.kind);
+
+  // Bâtiment de production : production réelle = taux/ouvrier × ouvriers.
+  const output = effectiveRate(building);
+  const perWorkerRate = buildingRate(building.kind, level);
+  const capacity = workerCapacity(building.kind, level);
+  const available = availablePopulation(state);
+  const canAddWorker =
+    !readOnly && !pending && building.workers < capacity && available >= 1;
+  const canRemoveWorker = !readOnly && !pending && building.workers > 0;
+
+  // Bâtiment de logement : population fournie au niveau courant / suivant.
+  const populationProvided = populationCapacityAt(building.kind, level);
+  const nextPopulationProvided = populationCapacityAt(
+    building.kind,
+    level + 1,
+  );
 
   return (
     <div className="w-72 rounded-md border border-gold/40 bg-parchment/95 p-5 shadow-lg">
@@ -92,18 +122,74 @@ export function BuildingPanel({
         {def.description}
       </p>
 
-      <div className="mt-4 flex flex-col gap-1 font-sans text-sm text-ink/80">
-        <div className="flex justify-between">
-          <span>Production</span>
-          <span className="tabular-nums">{currentRate.toFixed(2)} / s</span>
-        </div>
-        {!atMax && (
-          <div className="flex justify-between text-ink/50">
-            <span>Niveau {level + 1}</span>
-            <span className="tabular-nums">{nextRate.toFixed(2)} / s</span>
+      {housing ? (
+        <div className="mt-4 flex flex-col gap-1 font-sans text-sm text-ink/80">
+          <div className="flex justify-between">
+            <span>Population fournie</span>
+            <span className="tabular-nums">{populationProvided}</span>
           </div>
-        )}
-      </div>
+          {!atMax && (
+            <div className="flex justify-between text-ink/50">
+              <span>Niveau {level + 1}</span>
+              <span className="tabular-nums">{nextPopulationProvided}</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 flex flex-col gap-1 font-sans text-sm text-ink/80">
+            <div className="flex justify-between">
+              <span>Production</span>
+              <span className="tabular-nums">{output.toFixed(2)} / s</span>
+            </div>
+            <div className="flex justify-between text-ink/50">
+              <span>Par ouvrier</span>
+              <span className="tabular-nums">
+                {perWorkerRate.toFixed(2)} / s
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4 border-t border-ink/10 pt-3 font-sans text-sm text-ink/80">
+            <div className="flex items-center justify-between">
+              <span>Ouvriers</span>
+              <div className="flex items-center gap-2">
+                {!readOnly && (
+                  <button
+                    type="button"
+                    disabled={!canRemoveWorker}
+                    onClick={onUnassignWorker}
+                    aria-label="Retirer un ouvrier"
+                    className="h-6 w-6 rounded border border-ink/40 font-sans text-base leading-none text-ink/80 transition-colors hover:bg-ink hover:text-parchment disabled:cursor-not-allowed disabled:border-ink/15 disabled:bg-ink/10 disabled:text-ink/40 disabled:hover:bg-ink/10 disabled:hover:text-ink/40"
+                  >
+                    &minus;
+                  </button>
+                )}
+                <span className="tabular-nums">
+                  {building.workers} / {capacity}
+                </span>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    disabled={!canAddWorker}
+                    onClick={onAssignWorker}
+                    aria-label="Assigner un ouvrier"
+                    className="h-6 w-6 rounded border border-blood font-sans text-base leading-none text-blood transition-colors hover:bg-blood hover:text-parchment disabled:cursor-not-allowed disabled:border-ink/15 disabled:bg-ink/10 disabled:text-ink/40 disabled:hover:bg-ink/10 disabled:hover:text-ink/40"
+                  >
+                    +
+                  </button>
+                )}
+              </div>
+            </div>
+            {!readOnly && (
+              <div className="mt-1 flex justify-between text-ink/50">
+                <span>Sujets disponibles</span>
+                <span className="tabular-nums">{available}</span>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {!readOnly && (
         <div className="mt-4 border-t border-ink/10 pt-3">

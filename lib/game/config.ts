@@ -26,15 +26,21 @@ export type BuildingConfig = {
   readonly rateGrowthPerLevel: number;
   // Niveau maximal atteignable.
   readonly maxLevel: number;
+  // Bâtiments « logement » uniquement : population fournie instantanément à la
+  // pose (niveau 1). Présence de ce champ ⇔ bâtiment de logement (cf.
+  // `isHousing`). Les bâtiments de production le laissent absent.
+  readonly populationCapacity?: number;
+  // Population additionnelle par niveau pour les bâtiments de logement.
+  readonly populationGrowthPerLevel?: number;
 };
 
 export const GAME_CONFIG: Readonly<Record<BuildingKind, BuildingConfig>> = {
   farm: {
     label: "Ferme",
-    description: "Produit du grain à un rythme régulier.",
+    description: "Produit du grain — chaque ouvrier assigné fait tourner un champ.",
     produces: "grain",
     baseRatePerSecond: 0.1,
-    baseCost: { gold: 10 },
+    baseCost: { gold: 10, wood: 5 },
     baseUpgradeCost: { grain: 15 },
     upgradeCostFactor: 1.6,
     rateGrowthPerLevel: 0.1,
@@ -42,7 +48,7 @@ export const GAME_CONFIG: Readonly<Record<BuildingKind, BuildingConfig>> = {
   },
   mine: {
     label: "Mine",
-    description: "Extrait de l'or, lentement mais sûrement.",
+    description: "Extrait de l'or — au rythme des ouvriers qui y descendent.",
     produces: "gold",
     baseRatePerSecond: 0.05,
     baseCost: { grain: 20 },
@@ -50,6 +56,30 @@ export const GAME_CONFIG: Readonly<Record<BuildingKind, BuildingConfig>> = {
     upgradeCostFactor: 1.7,
     rateGrowthPerLevel: 0.05,
     maxLevel: 10,
+  },
+  lumberjack: {
+    label: "Cabane de bûcheron",
+    description: "Abat du bois — ne coûte que de l'or à bâtir.",
+    produces: "wood",
+    baseRatePerSecond: 0.08,
+    baseCost: { gold: 15 },
+    baseUpgradeCost: { gold: 20 },
+    upgradeCostFactor: 1.6,
+    rateGrowthPerLevel: 0.05,
+    maxLevel: 10,
+  },
+  house: {
+    label: "Maison",
+    description: "Loge des sujets — fournit de la population à assigner.",
+    produces: "population",
+    baseRatePerSecond: 0,
+    baseCost: { gold: 20 },
+    baseUpgradeCost: { gold: 30 },
+    upgradeCostFactor: 1.6,
+    rateGrowthPerLevel: 0,
+    maxLevel: 10,
+    populationCapacity: 3,
+    populationGrowthPerLevel: 2,
   },
 };
 
@@ -70,8 +100,10 @@ export function upgradeCost(
   return cost;
 }
 
-// Production par seconde d'un bâtiment à un niveau donné.
+// Production par seconde et PAR OUVRIER d'un bâtiment à un niveau donné.
 // LINÉAIRE : baseRatePerSecond + rateGrowthPerLevel * (level - 1).
+// La production réelle d'un bâtiment = ce taux × nombre d'ouvriers assignés
+// (cf. `effectiveRate` dans engine.ts).
 export function buildingRate(kind: BuildingKind, level: number): number {
   const cfg = GAME_CONFIG[kind];
   return cfg.baseRatePerSecond + cfg.rateGrowthPerLevel * (level - 1);
@@ -79,6 +111,33 @@ export function buildingRate(kind: BuildingKind, level: number): number {
 
 export function isMaxLevel(kind: BuildingKind, level: number): boolean {
   return level >= GAME_CONFIG[kind].maxLevel;
+}
+
+// Un bâtiment de logement (maison) : fournit de la population au lieu de
+// produire au tick. Discriminé par la présence de `populationCapacity`.
+export function isHousing(kind: BuildingKind): boolean {
+  return GAME_CONFIG[kind].populationCapacity != null;
+}
+
+// Population fournie par un bâtiment de logement à un niveau donné.
+// LINÉAIRE : populationCapacity + populationGrowthPerLevel * (level - 1).
+// Renvoie 0 pour un bâtiment de production.
+export function populationCapacityAt(
+  kind: BuildingKind,
+  level: number,
+): number {
+  const cfg = GAME_CONFIG[kind];
+  if (cfg.populationCapacity == null) return 0;
+  return (
+    cfg.populationCapacity +
+    (cfg.populationGrowthPerLevel ?? 0) * (level - 1)
+  );
+}
+
+// Nombre maximal d'ouvriers assignables à un bâtiment = son niveau.
+// Renvoie 0 pour un bâtiment de logement (n'emploie pas d'ouvriers).
+export function workerCapacity(kind: BuildingKind, level: number): number {
+  return isHousing(kind) ? 0 : level;
 }
 
 // Remboursement à la revente d'un bâtiment : 50 % du total investi (coût de

@@ -1,5 +1,5 @@
 export const GRID_RADIUS = 6;
-export const STATE_VERSION = 7;
+export const STATE_VERSION = 8;
 
 // Ressources du jeu. La data (label, catégorie, ordre, couleur…) vit dans
 // lib/game/resources.ts — ce fichier ne porte QUE les types pour rester la
@@ -41,7 +41,7 @@ export type ResourceKind =
 
 export type ResourceCategory = "primary" | "prestige" | "secondary";
 
-export type BuildingKind = "farm" | "mine";
+export type BuildingKind = "farm" | "mine" | "lumberjack" | "house";
 
 export type Biome = "plain" | "forest" | "hill" | "water";
 
@@ -49,6 +49,9 @@ export type Building = {
   kind: BuildingKind;
   placedAt: number;
   level: number;
+  // Population assignée à ce bâtiment. Les bâtiments de production ne produisent
+  // qu'en fonction de ce nombre ; les maisons l'ignorent (toujours 0).
+  workers: number;
 };
 
 // Chemin (rivière ou route) traversant une tuile. inEdge et outEdge sont des
