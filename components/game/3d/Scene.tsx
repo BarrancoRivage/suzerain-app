@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { Environment, OrbitControls } from "@react-three/drei";
 import {
   Bloom,
@@ -10,27 +10,79 @@ import {
 } from "@react-three/postprocessing";
 import { BlendFunction, ToneMappingMode } from "postprocessing";
 
-import type { GameState } from "@/lib/game/types";
+import {
+  canPlaceBuildingAt,
+  snapWorld,
+  type WorldPosition,
+} from "@/lib/game/procgen";
+import type { BuildingKind, GameState } from "@/lib/game/types";
+
+import { BuildingsLayer } from "./BuildingsLayer";
 import { EdgePanControls } from "./EdgePanControls";
-import { HexTile } from "./HexTile";
-import { Landscape } from "./Landscape";
+import { PlacementOverlay } from "./PlacementOverlay";
+import { WorldTerrain } from "./WorldTerrain";
 
 type Props = {
   state: GameState;
-  clickableTileKey: (q: number, r: number) => boolean;
-  onTileClick: (q: number, r: number) => void;
+  selectedKind: BuildingKind | null;
+  isReadOnly: boolean;
+  pending: boolean;
+  onWorldClick: (x: number, z: number, hitBuildingId: string | null) => void;
 };
 
-// 0xF5EFE0 = parchment
 const FOG_COLOR = 0xf5efe0;
+const CLICK_PICK_RADIUS = 0.9; // tolérance world pour cliquer un bâtiment
 
-export function Scene({ state, clickableTileKey, onTileClick }: Props) {
+export function Scene({
+  state,
+  selectedKind,
+  isReadOnly,
+  pending,
+  onWorldClick,
+}: Props) {
+  const [hoverPosition, setHoverPosition] = useState<WorldPosition | null>(null);
+
+  function findBuildingAt(x: number, z: number): string | null {
+    let bestId: string | null = null;
+    let bestDistSq = CLICK_PICK_RADIUS * CLICK_PICK_RADIUS;
+    for (const b of state.buildings) {
+      const dx = b.x - x;
+      const dz = b.z - z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < bestDistSq) {
+        bestDistSq = d2;
+        bestId = b.id;
+      }
+    }
+    return bestId;
+  }
+
+  function clickableAt(x: number, z: number): boolean {
+    if (pending) return false;
+    // Mode inspection : on peut cliquer si on tape sur un bâtiment proche.
+    if (selectedKind === null) {
+      return findBuildingAt(x, z) !== null;
+    }
+    if (isReadOnly) return false;
+    return canPlaceBuildingAt(state.buildings, x, z);
+  }
+
+  function handleWorldClick(x: number, z: number) {
+    if (selectedKind === null) {
+      const hit = findBuildingAt(x, z);
+      if (hit) onWorldClick(x, z, hit);
+      return;
+    }
+    const snappedX = snapWorld(x);
+    const snappedZ = snapWorld(z);
+    onWorldClick(snappedX, snappedZ, null);
+  }
+
   return (
     <>
       <color attach="background" args={["#F5EFE0"]} />
-      <fog attach="fog" args={[FOG_COLOR, 35, 65]} />
+      <fog attach="fog" args={[FOG_COLOR, 140, 240]} />
 
-      {/* IBL pour l'éclairage indirect des matériaux PBR. */}
       <Suspense fallback={null}>
         <Environment
           preset="park"
@@ -45,12 +97,12 @@ export function Scene({ state, clickableTileKey, onTileClick }: Props) {
         color="#FFE9B8"
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-22}
-        shadow-camera-right={22}
-        shadow-camera-top={22}
-        shadow-camera-bottom={-22}
+        shadow-camera-left={-48}
+        shadow-camera-right={48}
+        shadow-camera-top={48}
+        shadow-camera-bottom={-48}
         shadow-camera-near={1}
-        shadow-camera-far={60}
+        shadow-camera-far={120}
         shadow-bias={-0.0002}
         shadow-normalBias={0.04}
       />
@@ -58,22 +110,24 @@ export function Scene({ state, clickableTileKey, onTileClick }: Props) {
       <ambientLight intensity={0.18} color="#FFF1D4" />
 
       <Suspense fallback={null}>
-        <Landscape />
-        {state.tiles.map((tile) => (
-          <HexTile
-            key={`${tile.q}:${tile.r}`}
-            tile={tile}
-            clickable={clickableTileKey(tile.q, tile.r)}
-            onClick={() => onTileClick(tile.q, tile.r)}
-          />
-        ))}
+        <WorldTerrain
+          clickableAt={clickableAt}
+          onWorldClick={handleWorldClick}
+          onHoverChange={setHoverPosition}
+        />
+        <BuildingsLayer state={state} />
+        <PlacementOverlay
+          selectedKind={selectedKind}
+          hoverPosition={hoverPosition}
+          clickableAt={clickableAt}
+        />
       </Suspense>
 
       <OrbitControls
         makeDefault
         enablePan={false}
-        minDistance={15}
-        maxDistance={55}
+        minDistance={22}
+        maxDistance={260}
         minPolarAngle={Math.PI / 6}
         maxPolarAngle={Math.PI / 2.4}
         target={[0, 0, 0]}
@@ -82,8 +136,6 @@ export function Scene({ state, clickableTileKey, onTileClick }: Props) {
       />
       <EdgePanControls />
 
-      {/* Post-processing léger : Bloom + Vignette + ACES.
-          N8AO et SoftShadows retirés (~50 % du frame budget gagné). */}
       <EffectComposer multisampling={4}>
         <Bloom
           intensity={0.28}

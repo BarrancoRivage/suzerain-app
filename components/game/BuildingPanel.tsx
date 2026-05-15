@@ -11,7 +11,11 @@ import {
   workerCapacity,
 } from "@/lib/game/config";
 import { availablePopulation, effectiveRate } from "@/lib/game/engine";
-import type { BuildingKind, GameState, Tile } from "@/lib/game/types";
+import type {
+  BuildingKind,
+  GameState,
+  WorldBuilding,
+} from "@/lib/game/types";
 import { canAfford, formatCost } from "./cost";
 import { FarmIcon } from "./icons/FarmIcon";
 import { HouseIcon } from "./icons/HouseIcon";
@@ -34,7 +38,7 @@ const COLORS: Record<BuildingKind, string> = {
 };
 
 type Props = {
-  tile: Tile;
+  building: WorldBuilding;
   state: GameState;
   readOnly: boolean;
   pending: boolean;
@@ -51,7 +55,7 @@ type Props = {
 // assigner des ouvriers. Tout est dérivé de `kind` + `level` + `workers` via
 // GAME_CONFIG. Le positionnement et la coquille sont portés par ActionPanel.
 export function BuildingPanel({
-  tile,
+  building,
   state,
   readOnly,
   pending,
@@ -62,13 +66,7 @@ export function BuildingPanel({
   onAssignWorker,
   onUnassignWorker,
 }: Props) {
-  // Ressources interpolées en temps réel (boucle rAF partagée avec le HUD) :
-  // le bouton « Améliorer » se débloque dès que la production atteint le coût,
-  // sans attendre un aller-retour serveur.
   const { displayed: liveResources } = useAnimatedResources(state);
-
-  const building = tile.building;
-  if (building === null) return null;
 
   const def = BUILDINGS[building.kind];
   const Icon = ICONS[building.kind];

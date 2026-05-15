@@ -26,8 +26,8 @@ import { TreasuryModal } from "./TreasuryModal";
 
 // Canvas WebGL : importé dynamiquement, ssr:false. Le bundle three+R3F+drei
 // ne charge qu'à l'arrivée sur /play, jamais sur la landing.
-const HexBoard = dynamic(
-  () => import("./3d/HexBoard").then((m) => m.HexBoard),
+const GameCanvas = dynamic(
+  () => import("./3d/GameCanvas").then((m) => m.GameCanvas),
   {
     ssr: false,
     loading: () => (
@@ -61,10 +61,8 @@ export function Board() {
   // Menu de construction déplié dans le panneau d'actions. Invariant :
   // selectedKind !== null implique buildMenuOpen === true.
   const [buildMenuOpen, setBuildMenuOpen] = useState(false);
-  // Tuile dont le bâtiment est inspecté (panneau d'actions). null = aucun.
-  const [inspected, setInspected] = useState<{ q: number; r: number } | null>(
-    null,
-  );
+  // Bâtiment inspecté (panneau d'actions). null = aucun.
+  const [inspectedId, setInspectedId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -95,7 +93,7 @@ export function Board() {
     viewedState !== null && viewedState.playerId !== ownPlayerId;
 
   function handleOpenBuildMenu() {
-    setInspected(null);
+    setInspectedId(null);
     setActionError(null);
     setBuildMenuOpen(true);
   }
@@ -107,7 +105,7 @@ export function Board() {
 
   function handleSelectPlayer(targetId: string) {
     setViewError(null);
-    setInspected(null);
+    setInspectedId(null);
     setBuildMenuOpen(false);
     if (ownPlayerId !== null && targetId === ownPlayerId) {
       setViewedState(null);
@@ -128,7 +126,7 @@ export function Board() {
 
   function handleReturnToOwnFief() {
     setViewError(null);
-    setInspected(null);
+    setInspectedId(null);
     setBuildMenuOpen(false);
     setSelectedKind(null);
     setViewedState(null);
@@ -150,25 +148,24 @@ export function Board() {
     });
   }
 
-  function handleTileClick(q: number, r: number) {
-    // Mode inspection : aucun bâtiment sélectionné → cliquer un bâtiment ouvre
-    // le panneau latéral (fonctionne aussi en lecture seule, pour visiter).
+  function handleWorldClick(
+    x: number,
+    z: number,
+    hitBuildingId: string | null,
+  ) {
     if (selectedKind === null) {
-      const tile = activeState.tiles.find((t) => t.q === q && t.r === r);
-      if (tile?.building) {
+      if (hitBuildingId !== null) {
         setActionError(null);
         setBuildMenuOpen(false);
-        setInspected({ q, r });
+        setInspectedId(hitBuildingId);
       }
       return;
     }
-
-    // Mode pose.
     if (isReadOnly || pending) return;
     const kind = selectedKind;
     setActionError(null);
     startTransition(async () => {
-      const res = await placeBuildingAction(q, r, kind);
+      const res = await placeBuildingAction(x, z, kind);
       if (res.ok) {
         setOwnState(res.state);
         setSelectedKind(null);
@@ -179,29 +176,25 @@ export function Board() {
   }
 
   function handleUpgrade() {
-    if (inspected === null || isReadOnly || pending) return;
-    const { q, r } = inspected;
+    if (inspectedId === null || isReadOnly || pending) return;
+    const id = inspectedId;
     setActionError(null);
     startTransition(async () => {
-      const res = await upgradeBuildingAction(q, r);
-      if (res.ok) {
-        setOwnState(res.state);
-      } else {
-        setActionError(res.message);
-      }
+      const res = await upgradeBuildingAction(id);
+      if (res.ok) setOwnState(res.state);
+      else setActionError(res.message);
     });
   }
 
   function handleSell() {
-    if (inspected === null || isReadOnly || pending) return;
-    const { q, r } = inspected;
+    if (inspectedId === null || isReadOnly || pending) return;
+    const id = inspectedId;
     setActionError(null);
     startTransition(async () => {
-      const res = await sellBuildingAction(q, r);
+      const res = await sellBuildingAction(id);
       if (res.ok) {
         setOwnState(res.state);
-        // Le bâtiment n'existe plus : on ferme le panneau d'inspection.
-        setInspected(null);
+        setInspectedId(null);
       } else {
         setActionError(res.message);
       }
@@ -209,30 +202,24 @@ export function Board() {
   }
 
   function handleAssignWorker() {
-    if (inspected === null || isReadOnly || pending) return;
-    const { q, r } = inspected;
+    if (inspectedId === null || isReadOnly || pending) return;
+    const id = inspectedId;
     setActionError(null);
     startTransition(async () => {
-      const res = await assignWorkerAction(q, r);
-      if (res.ok) {
-        setOwnState(res.state);
-      } else {
-        setActionError(res.message);
-      }
+      const res = await assignWorkerAction(id);
+      if (res.ok) setOwnState(res.state);
+      else setActionError(res.message);
     });
   }
 
   function handleUnassignWorker() {
-    if (inspected === null || isReadOnly || pending) return;
-    const { q, r } = inspected;
+    if (inspectedId === null || isReadOnly || pending) return;
+    const id = inspectedId;
     setActionError(null);
     startTransition(async () => {
-      const res = await unassignWorkerAction(q, r);
-      if (res.ok) {
-        setOwnState(res.state);
-      } else {
-        setActionError(res.message);
-      }
+      const res = await unassignWorkerAction(id);
+      if (res.ok) setOwnState(res.state);
+      else setActionError(res.message);
     });
   }
 
@@ -256,34 +243,21 @@ export function Board() {
 
   const activeState = viewedState ?? ownState;
 
-  const isClickable = (q: number, r: number): boolean => {
-    if (pending) return false;
-    const tile = activeState.tiles.find((t) => t.q === q && t.r === r);
-    if (!tile) return false;
-    // Mode inspection : tout bâtiment est cliquable, même en lecture seule.
-    if (selectedKind === null) return tile.building !== null;
-    // Mode pose : tuile vide et constructible, sur son propre fief.
-    if (isReadOnly) return false;
-    if (tile.biome === "water") return false;
-    if (tile.path) return false;
-    return tile.building === null;
-  };
-
   // Re-dérivée à chaque render depuis activeState : le panneau reflète ainsi le
   // niveau à jour après une amélioration.
-  const inspectedTile =
-    inspected === null
+  const inspectedBuilding =
+    inspectedId === null
       ? null
-      : activeState.tiles.find(
-          (t) => t.q === inspected.q && t.r === inspected.r,
-        ) ?? null;
+      : activeState.buildings.find((b) => b.id === inspectedId) ?? null;
 
   return (
     <>
-      <HexBoard
+      <GameCanvas
         state={activeState}
-        clickableTileKey={isClickable}
-        onTileClick={handleTileClick}
+        selectedKind={selectedKind}
+        isReadOnly={isReadOnly}
+        pending={pending}
+        onWorldClick={handleWorldClick}
       />
 
       <TopBar
@@ -309,11 +283,11 @@ export function Board() {
         selectedKind={selectedKind}
         onSelect={setSelectedKind}
         resources={activeState.resources}
-        inspectedTile={inspectedTile}
+        inspectedBuilding={inspectedBuilding}
         state={activeState}
         onUpgrade={handleUpgrade}
         onSell={handleSell}
-        onCloseInspect={() => setInspected(null)}
+        onCloseInspect={() => setInspectedId(null)}
         onAssignWorker={handleAssignWorker}
         onUnassignWorker={handleUnassignWorker}
         viewedName={viewedName}

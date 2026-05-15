@@ -4,7 +4,7 @@ import type {
   BuildingKind,
   GameState,
   Resources,
-  Tile,
+  WorldBuilding,
 } from "@/lib/game/types";
 import { BuildPanel } from "./BuildPanel";
 import { BuildingPanel } from "./BuildingPanel";
@@ -16,22 +16,18 @@ type Props = {
   buildMenuOpen: boolean;
   onOpenBuildMenu: () => void;
   onCloseBuildMenu: () => void;
-  // Construction
   selectedKind: BuildingKind | null;
   onSelect: (kind: BuildingKind | null) => void;
   resources: Resources;
-  // Inspection
-  inspectedTile: Tile | null;
+  inspectedBuilding: WorldBuilding | null;
   state: GameState;
   onUpgrade: () => void;
   onSell: () => void;
   onCloseInspect: () => void;
   onAssignWorker: () => void;
   onUnassignWorker: () => void;
-  // Visite d'un fief tiers
   viewedName: string | null;
   onReturn: () => void;
-  // Statut
   viewError: string | null;
   actionError: string | null;
 };
@@ -54,7 +50,7 @@ export function ActionPanel({
   selectedKind,
   onSelect,
   resources,
-  inspectedTile,
+  inspectedBuilding,
   state,
   onUpgrade,
   onSell,
@@ -68,11 +64,11 @@ export function ActionPanel({
 }: Props) {
   let content: React.ReactNode;
 
-  if (inspectedTile?.building) {
+  if (inspectedBuilding) {
     content = (
       <div className={SHELL}>
         <BuildingPanel
-          tile={inspectedTile}
+          building={inspectedBuilding}
           state={state}
           readOnly={isReadOnly}
           pending={pending}
@@ -94,7 +90,7 @@ export function ActionPanel({
     content = <ViewingBanner name={viewedName} onReturn={onReturn} />;
   } else if (buildMenuOpen) {
     const status = actionError ?? viewError;
-    const hint = selectedKind ? "Cliquez une tuile pour la poser." : null;
+    const hint = selectedKind ? "Cliquez la carte pour poser le bâtiment." : null;
     content = (
       <div className={SHELL}>
         <div className="mb-3 flex items-center justify-between">
@@ -134,7 +130,10 @@ export function ActionPanel({
   }
 
   return (
-    <div className="pointer-events-none absolute bottom-8 left-6 z-10 flex flex-col items-start gap-2">
+    <div
+      data-no-edge-pan
+      className="pointer-events-none absolute bottom-8 left-6 z-10 flex flex-col items-start gap-2"
+    >
       <div className="pointer-events-auto">{content}</div>
     </div>
   );
