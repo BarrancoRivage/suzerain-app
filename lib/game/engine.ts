@@ -1,6 +1,7 @@
-// Game engine : tick (production), placeBuilding (action joueur),
-// createInitialState (orchestration de la procgen via mapgen.ts).
-// Pas de logique procgen / hex math ici : tout est dans mapgen.ts + hex.ts.
+// Game engine — version "world-coords" : plus de notion d'hex pour le
+// placement. Les bâtiments sont stockés dans `state.buildings` (liste de
+// WorldBuilding) avec des coordonnées (x, z) absolues. La validité du
+// placement repose sur la procgen continue (cf. lib/game/procgen.ts).
 
 import { BUILDINGS } from "./buildings";
 import {
@@ -12,23 +13,25 @@ import {
   upgradeCost,
   workerCapacity,
 } from "./config";
-import { isInsideGrid } from "./hex";
-import { buildMap } from "./mapgen";
+import {
+  isInMapBounds,
+  isWaterAt,
+  MIN_BUILDING_SPACING,
+} from "./procgen";
 import {
   addResources,
   emptyResources,
   normalizeResources,
 } from "./resources";
-import { hashString } from "./rng";
 import {
   GameError,
   STATE_VERSION,
-  type Building,
   type BuildingKind,
   type GameState,
   type ResourceKind,
   type Resources,
   type Tile,
+  type WorldBuilding,
 } from "./types";
 
 export function createInitialState(playerId: string, now: number): GameState {
@@ -37,15 +40,15 @@ export function createInitialState(playerId: string, now: number): GameState {
     playerId,
     createdAt: now,
     lastTickAt: now,
-    tiles: buildMap(hashString(playerId)),
+    buildings: [],
+    tiles: [],
     resources: { ...emptyResources(), gold: 100, wood: 20 },
   };
 }
 
 // Production réelle par seconde d'un bâtiment = taux par ouvrier × ouvriers
-// assignés. Un bâtiment de logement ne produit rien au tick (il fournit sa
-// population à la pose) ; un bâtiment de production sans ouvrier produit 0.
-export function effectiveRate(building: Building): number {
+// assignés. Les bâtiments d'habitation produisent 0 (population à la pose).
+export function effectiveRate(building: WorldBuilding): number {
   if (isHousing(building.kind)) return 0;
   return buildingRate(building.kind, building.level) * building.workers;
 }
@@ -53,15 +56,12 @@ export function effectiveRate(building: Building): number {
 export function tick(state: GameState, now: number): GameState {
   const elapsedMs = Math.max(0, now - state.lastTickAt);
   if (elapsedMs === 0) return state;
-
   const elapsedSeconds = elapsedMs / 1000;
   const produced = emptyResources();
-  for (const tile of state.tiles) {
-    if (tile.building === null) continue;
-    const def = BUILDINGS[tile.building.kind];
-    produced[def.produces] += effectiveRate(tile.building) * elapsedSeconds;
+  for (const b of state.buildings) {
+    const def = BUILDINGS[b.kind];
+    produced[def.produces] += effectiveRate(b) * elapsedSeconds;
   }
-
   return {
     ...state,
     lastTickAt: now,
@@ -71,35 +71,26 @@ export function tick(state: GameState, now: number): GameState {
 
 export function placeBuilding(
   state: GameState,
-  q: number,
-  r: number,
+  x: number,
+  z: number,
   kind: BuildingKind,
-  subX = 0,
-  subZ = 0,
 ): GameState {
-  if (!isInsideGrid(q, r)) {
-    throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
+  if (!isInMapBounds(x, z)) {
+    throw new GameError("OUT_OF_BOUNDS", "Position hors map.");
   }
-
-  const index = state.tiles.findIndex((t) => t.q === q && t.r === r);
-  if (index < 0) {
-    throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
+  if (isWaterAt(x, z)) {
+    throw new GameError("NOT_BUILDABLE", "On ne bâtit pas sur l'eau.");
   }
-
-  const tile = state.tiles[index];
-  if (!isBuildableTerrain(tile)) {
-    throw new GameError("NOT_BUILDABLE", "Ce terrain n'est pas constructible.");
-  }
-  if (tile.path) {
-    throw new GameError(
-      "NOT_BUILDABLE",
-      tile.path.type === "river"
-        ? "Le cours d'eau traverse cette tuile."
-        : "Une route traverse déjà cette tuile.",
-    );
-  }
-  if (tile.building !== null) {
-    throw new GameError("TILE_OCCUPIED", "Cette tuile est déjà bâtie.");
+  // Overlap check : distance minimale entre bâtiments.
+  for (const b of state.buildings) {
+    const dx = b.x - x;
+    const dz = b.z - z;
+    if (dx * dx + dz * dz < MIN_BUILDING_SPACING * MIN_BUILDING_SPACING) {
+      throw new GameError(
+        "TILE_OCCUPIED",
+        "Trop près d'un autre bâtiment.",
+      );
+    }
   }
 
   const def = BUILDINGS[kind];
@@ -113,68 +104,40 @@ export function placeBuilding(
       );
     }
   }
-
   const nextResources: Resources = { ...state.resources };
   for (const [resource, amount] of Object.entries(def.cost) as Array<
     [ResourceKind, number]
   >) {
     nextResources[resource] = (nextResources[resource] ?? 0) - amount;
   }
-
-  // Un bâtiment de logement fournit sa population immédiatement à la pose.
   if (isHousing(kind)) {
     nextResources.population += populationCapacityAt(kind, 1);
   }
 
-  // Clamp les sub-coords pour rester dans l'hex (rayon ≈ 0.5).
-  const clampedSubX = Math.max(-0.5, Math.min(0.5, subX));
-  const clampedSubZ = Math.max(-0.5, Math.min(0.5, subZ));
-  const nextTiles = state.tiles.slice();
-  nextTiles[index] = {
-    ...tile,
-    building: {
-      kind,
-      placedAt: state.lastTickAt,
-      level: 1,
-      workers: 0,
-      subX: clampedSubX,
-      subZ: clampedSubZ,
-    },
+  const newBuilding: WorldBuilding = {
+    id: makeBuildingId(),
+    kind,
+    x,
+    z,
+    placedAt: state.lastTickAt,
+    level: 1,
+    workers: 0,
   };
-
   return {
     ...state,
-    tiles: nextTiles,
+    buildings: [...state.buildings, newBuilding],
     resources: nextResources,
   };
 }
 
 export function upgradeBuilding(
   state: GameState,
-  q: number,
-  r: number,
+  buildingId: string,
 ): GameState {
-  if (!isInsideGrid(q, r)) {
-    throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
-  }
-
-  const index = state.tiles.findIndex((t) => t.q === q && t.r === r);
-  if (index < 0) {
-    throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
-  }
-
-  const tile = state.tiles[index];
-  const building = tile.building;
-  if (building === null) {
-    throw new GameError("NO_BUILDING", "Aucun bâtiment à améliorer ici.");
-  }
+  const { index, building } = findBuildingById(state, buildingId);
   if (isMaxLevel(building.kind, building.level)) {
-    throw new GameError(
-      "MAX_LEVEL",
-      "Ce bâtiment est déjà au niveau maximal.",
-    );
+    throw new GameError("MAX_LEVEL", "Ce bâtiment est déjà au niveau maximal.");
   }
-
   const cost = upgradeCost(building.kind, building.level);
   for (const [resource, amount] of Object.entries(cost) as Array<
     [ResourceKind, number]
@@ -188,54 +151,27 @@ export function upgradeBuilding(
       );
     }
   }
-
   const nextResources: Resources = { ...state.resources };
   for (const [resource, amount] of Object.entries(cost) as Array<
     [ResourceKind, number]
   >) {
     nextResources[resource] = (nextResources[resource] ?? 0) - amount;
   }
-
-  // Améliorer une maison ajoute la population gagnée entre les deux niveaux.
   if (isHousing(building.kind)) {
     nextResources.population +=
       populationCapacityAt(building.kind, building.level + 1) -
       populationCapacityAt(building.kind, building.level);
   }
-
-  const nextTiles = state.tiles.slice();
-  nextTiles[index] = {
-    ...tile,
-    building: { ...building, level: building.level + 1 },
-  };
-
-  return {
-    ...state,
-    tiles: nextTiles,
-    resources: nextResources,
-  };
+  const nextBuildings = state.buildings.slice();
+  nextBuildings[index] = { ...building, level: building.level + 1 };
+  return { ...state, buildings: nextBuildings, resources: nextResources };
 }
 
 export function sellBuilding(
   state: GameState,
-  q: number,
-  r: number,
+  buildingId: string,
 ): GameState {
-  if (!isInsideGrid(q, r)) {
-    throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
-  }
-
-  const index = state.tiles.findIndex((t) => t.q === q && t.r === r);
-  if (index < 0) {
-    throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
-  }
-
-  const tile = state.tiles[index];
-  const building = tile.building;
-  if (building === null) {
-    throw new GameError("NO_BUILDING", "Aucun bâtiment à revendre ici.");
-  }
-
+  const { index, building } = findBuildingById(state, buildingId);
   const refund = sellRefund(building.kind, building.level);
   const nextResources: Resources = { ...state.resources };
   for (const [resource, amount] of Object.entries(refund) as Array<
@@ -243,10 +179,6 @@ export function sellBuilding(
   >) {
     nextResources[resource] = (nextResources[resource] ?? 0) + amount;
   }
-
-  // Revendre une maison retire la population qu'elle fournissait. On refuse si
-  // cela rendrait la population insuffisante pour les ouvriers déjà assignés —
-  // le joueur doit d'abord les désassigner.
   if (isHousing(building.kind)) {
     const granted = populationCapacityAt(building.kind, building.level);
     if (state.resources.population - granted < assignedPopulation(state)) {
@@ -257,70 +189,46 @@ export function sellBuilding(
     }
     nextResources.population -= granted;
   }
-
-  const nextTiles = state.tiles.slice();
-  nextTiles[index] = { ...tile, building: null };
-
-  return {
-    ...state,
-    tiles: nextTiles,
-    resources: nextResources,
-  };
+  const nextBuildings = state.buildings.slice();
+  nextBuildings.splice(index, 1);
+  return { ...state, buildings: nextBuildings, resources: nextResources };
 }
 
 export function productionPerSecond(state: GameState): Resources {
   const total = emptyResources();
-  for (const tile of state.tiles) {
-    if (tile.building === null) continue;
-    const def = BUILDINGS[tile.building.kind];
-    total[def.produces] += effectiveRate(tile.building);
+  for (const b of state.buildings) {
+    const def = BUILDINGS[b.kind];
+    total[def.produces] += effectiveRate(b);
   }
   return total;
 }
 
-// Population actuellement assignée comme ouvriers, tous bâtiments confondus.
 export function assignedPopulation(state: GameState): number {
   let total = 0;
-  for (const tile of state.tiles) {
-    if (tile.building === null) continue;
-    total += tile.building.workers;
-  }
+  for (const b of state.buildings) total += b.workers;
   return total;
 }
 
-// Population libre, assignable à un bâtiment. `resources.population` est le
-// total fourni par les maisons ; on en retire les ouvriers déjà placés.
 export function availablePopulation(state: GameState): number {
   return state.resources.population - assignedPopulation(state);
 }
 
-// Trouve une tuile bâtie, en factorisant les gardes communes à assign/unassign.
-function findBuiltTile(
+function findBuildingById(
   state: GameState,
-  q: number,
-  r: number,
-): { index: number; building: Building } {
-  if (!isInsideGrid(q, r)) {
-    throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
-  }
-  const index = state.tiles.findIndex((t) => t.q === q && t.r === r);
+  buildingId: string,
+): { index: number; building: WorldBuilding } {
+  const index = state.buildings.findIndex((b) => b.id === buildingId);
   if (index < 0) {
-    throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
+    throw new GameError("NO_BUILDING", "Bâtiment introuvable.");
   }
-  const building = state.tiles[index].building;
-  if (building === null) {
-    throw new GameError("NO_BUILDING", "Aucun bâtiment sur cette tuile.");
-  }
-  return { index, building };
+  return { index, building: state.buildings[index] };
 }
 
 export function assignWorker(
   state: GameState,
-  q: number,
-  r: number,
+  buildingId: string,
 ): GameState {
-  const { index, building } = findBuiltTile(state, q, r);
-
+  const { index, building } = findBuildingById(state, buildingId);
   if (isHousing(building.kind)) {
     throw new GameError(
       "NOT_A_WORKPLACE",
@@ -339,91 +247,71 @@ export function assignWorker(
       "Aucun sujet disponible — bâtissez une maison.",
     );
   }
-
-  const tile = state.tiles[index];
-  const nextTiles = state.tiles.slice();
-  nextTiles[index] = {
-    ...tile,
-    building: { ...building, workers: building.workers + 1 },
-  };
-  return { ...state, tiles: nextTiles };
+  const next = state.buildings.slice();
+  next[index] = { ...building, workers: building.workers + 1 };
+  return { ...state, buildings: next };
 }
 
 export function unassignWorker(
   state: GameState,
-  q: number,
-  r: number,
+  buildingId: string,
 ): GameState {
-  const { index, building } = findBuiltTile(state, q, r);
-
+  const { index, building } = findBuildingById(state, buildingId);
   if (building.workers <= 0) {
     throw new GameError(
       "NO_WORKERS_ASSIGNED",
       "Aucun ouvrier à retirer de ce bâtiment.",
     );
   }
-
-  const tile = state.tiles[index];
-  const nextTiles = state.tiles.slice();
-  nextTiles[index] = {
-    ...tile,
-    building: { ...building, workers: building.workers - 1 },
-  };
-  return { ...state, tiles: nextTiles };
+  const next = state.buildings.slice();
+  next[index] = { ...building, workers: building.workers - 1 };
+  return { ...state, buildings: next };
 }
 
-// Normalise un état chargé depuis la persistance : complète `resources` avec
-// les clés ajoutées depuis sa dernière sauvegarde (états ne portant que
-// grain/gold) et garantit `workers` sur chaque bâtiment. Idempotent. Branché
-// dans les backends DB (loadState*) — un seul point couvre tous les chemins de
-// chargement. Voir normalizeResources.
+// Migration v9 (tile.building) → v10 (state.buildings world coords).
+// Pour chaque tile avec un building : on convertit (q, r) en coords world
+// via la formule axiale (pointy-top, HEX_SIZE=1), on ajoute building.subX
+// et building.subZ s'ils existent, et on génère un id stable.
 export function migrateState(state: GameState): GameState {
-  const modernTiles = state.tiles.every(
-    (tile) =>
-      typeof tile.elevation === "number" &&
-      typeof tile.moisture === "number" &&
-      typeof tile.temperature === "number" &&
-      "water" in tile,
-  );
-  const tiles = modernTiles
-    ? state.tiles
-    : migrateTilesToCurrentMap(state.playerId, state.tiles);
+  const buildings: WorldBuilding[] = Array.isArray(state.buildings)
+    ? state.buildings.slice()
+    : [];
+
+  // Migration des anciens états : tile.building → buildings list.
+  if (Array.isArray(state.tiles)) {
+    const SQRT3 = Math.sqrt(3);
+    for (const tile of state.tiles as Tile[]) {
+      if (!tile.building) continue;
+      const x = SQRT3 * (tile.q + tile.r / 2) + (tile.building.subX ?? 0);
+      const z = (3 / 2) * tile.r + (tile.building.subZ ?? 0);
+      buildings.push({
+        id: makeBuildingId(),
+        kind: tile.building.kind,
+        x,
+        z,
+        placedAt: tile.building.placedAt,
+        level: tile.building.level,
+        workers: tile.building.workers ?? 0,
+      });
+    }
+  }
 
   return {
-    ...state,
     version: STATE_VERSION,
+    playerId: state.playerId,
+    createdAt: state.createdAt,
+    lastTickAt: state.lastTickAt,
+    buildings,
+    tiles: [], // tile data n'est plus utilisée par le rendu ni l'engine
     resources: normalizeResources(state.resources),
-    tiles: tiles.map((tile) =>
-      tile.building === null
-        ? tile
-        : { ...tile, building: { ...tile.building, workers: tile.building.workers ?? 0 } },
-    ),
   };
 }
 
-function isBuildableTerrain(tile: Tile): boolean {
-  // On bâtit partout sauf sur l'eau. Les montagnes redeviennent
-  // constructibles (le relief les distingue déjà visuellement).
-  return tile.water === null && tile.biome !== "water";
-}
-
-function migrateTilesToCurrentMap(playerId: string, oldTiles: Tile[]): Tile[] {
-  const nextTiles = buildMap(hashString(playerId));
-  const byCoord = new Map(oldTiles.map((tile) => [`${tile.q}:${tile.r}`, tile]));
-
-  return nextTiles.map((tile) => {
-    const old = byCoord.get(`${tile.q}:${tile.r}`);
-    if (!old?.building) return tile;
-
-    // On préserve les bâtiments existants même si la nouvelle procgen place
-    // une rivière/montagne sur l'ancienne coordonnée : c'est une migration de
-    // compatibilité, pas une punition discrète du joueur.
-    return {
-      ...tile,
-      biome: tile.biome === "water" || tile.biome === "mountain" ? "plain" : tile.biome,
-      water: null,
-      path: undefined,
-      building: old.building,
-    };
-  });
+function makeBuildingId(): string {
+  // crypto.randomUUID disponible côté Node 19+ et tous les browsers modernes.
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback minimaliste (pas un vrai UUID mais unique en pratique).
+  return `b_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }

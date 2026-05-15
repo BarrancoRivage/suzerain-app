@@ -1,10 +1,8 @@
 "use client";
 
-import { hashCoord } from "@/lib/game/rng";
-import type { GameState, Tile } from "@/lib/game/types";
+import type { GameState, WorldBuilding } from "@/lib/game/types";
 import { Html } from "@react-three/drei";
 
-import { axialToWorld } from "./hexMath";
 import { heightAt } from "./WorldTerrain";
 import {
   FarmModel,
@@ -13,38 +11,31 @@ import {
   MineModel,
 } from "./models/Models";
 
-// Rendu des bâtiments placés. Plus aucun décor naturel (arbres, rochers,
-// collines, montagnes) — la map procédurale gère son apparence seule.
+// Rendu de tous les bâtiments du joueur. Plus aucune notion d'hex : on
+// itère state.buildings (world coords) et on pose chacun à sa position.
 export function TileContents({ state }: { state: GameState }) {
   return (
     <>
-      {state.tiles
-        .filter((tile) => tile.building !== null)
-        .map((tile) => (
-          <BuildingMesh key={`${tile.q}:${tile.r}`} tile={tile} />
-        ))}
+      {state.buildings.map((b) => (
+        <BuildingMesh key={b.id} building={b} />
+      ))}
     </>
   );
 }
 
-function BuildingMesh({ tile }: { tile: Tile }) {
-  if (!tile.building) return null;
-  const seed = hashCoord(tile.q, tile.r);
-  const [cx, cz] = axialToWorld(tile.q, tile.r);
-  const subX = tile.building.subX ?? 0;
-  const subZ = tile.building.subZ ?? 0;
-  const x = cx + subX;
-  const z = cz + subZ;
-  const y = heightAt(x, z) + 0.02;
-  const rotation = ((seed % 6) * Math.PI) / 3;
+function BuildingMesh({ building }: { building: WorldBuilding }) {
+  const y = heightAt(building.x, building.z) + 0.02;
+  // Rotation déterministe basée sur l'id pour la variété visuelle.
+  const rotation = hashRotation(building.id);
+  const seed = hashSeed(building.id);
 
   return (
-    <group position={[x, y, z]} rotation={[0, rotation, 0]}>
+    <group position={[building.x, y, building.z]} rotation={[0, rotation, 0]}>
       <group scale={0.72}>
-        {tile.building.kind === "farm" && <FarmModel seed={seed} />}
-        {tile.building.kind === "lumberjack" && <LumberjackModel />}
-        {tile.building.kind === "house" && <HouseModel />}
-        {tile.building.kind === "mine" && <MineModel />}
+        {building.kind === "farm" && <FarmModel seed={seed} />}
+        {building.kind === "lumberjack" && <LumberjackModel />}
+        {building.kind === "house" && <HouseModel />}
+        {building.kind === "mine" && <MineModel />}
       </group>
       <Html
         position={[0, 1.7, 0]}
@@ -53,9 +44,25 @@ function BuildingMesh({ tile }: { tile: Tile }) {
         className="pointer-events-none select-none"
       >
         <div className="whitespace-nowrap rounded-full border border-gold/70 bg-parchment px-2 py-0.5 font-serif text-sm font-semibold leading-none text-ink shadow-sm tabular-nums">
-          {tile.building.level}
+          {building.level}
         </div>
       </Html>
     </group>
   );
+}
+
+function hashRotation(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  }
+  return ((h % 6) * Math.PI) / 3;
+}
+
+function hashSeed(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (h * 131 + id.charCodeAt(i)) >>> 0;
+  }
+  return h;
 }

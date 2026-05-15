@@ -10,23 +10,24 @@ import {
 } from "@react-three/postprocessing";
 import { BlendFunction, ToneMappingMode } from "postprocessing";
 
-import { isInsideGrid } from "@/lib/game/hex";
-import type { BuildingKind, GameState, Tile } from "@/lib/game/types";
+import {
+  MIN_BUILDING_SPACING,
+  isInMapBounds,
+  isWaterAt,
+} from "@/lib/game/procgen";
+import type { BuildingKind, GameState } from "@/lib/game/types";
 
 import { EdgePanControls } from "./EdgePanControls";
-import { axialToWorld, worldToAxial } from "./hexMath";
 import { PlacementOverlay } from "./PlacementOverlay";
 import { TileContents } from "./TileContents";
-import { isWaterAt, WorldTerrain } from "./WorldTerrain";
+import { WorldTerrain } from "./WorldTerrain";
 
 export type HoverHit = {
-  tile: Tile;
   worldX: number;
   worldZ: number;
 };
 
-// Pas de grille hex visible : on snap le placement à une grille fine (1/4
-// unit world) pour le feel "snap-to-grid" sans contrainte hex.
+// Snap fin (en world units) pour la position du ghost. 0.25 unit ≈ 25 cm.
 export const SUB_GRID_STEP = 0.25;
 
 export function snapSub(value: number): number {
@@ -36,46 +37,67 @@ export function snapSub(value: number): number {
 type Props = {
   state: GameState;
   selectedKind: BuildingKind | null;
-  clickableTileKey: (q: number, r: number) => boolean;
-  onTileClick: (q: number, r: number, subX?: number, subZ?: number) => void;
+  isReadOnly: boolean;
+  pending: boolean;
+  onWorldClick: (x: number, z: number, hitBuildingId: string | null) => void;
 };
 
 const FOG_COLOR = 0xf5efe0;
+const CLICK_PICK_RADIUS = 0.9; // tolérance world pour cliquer un bâtiment
 
 export function Scene({
   state,
   selectedKind,
-  clickableTileKey,
-  onTileClick,
+  isReadOnly,
+  pending,
+  onWorldClick,
 }: Props) {
   const [hoverHit, setHoverHit] = useState<HoverHit | null>(null);
 
-  // Mapping world → tile (back-compat avec backend tile-based). Tant que
-  // l'engine n'est pas refactor en buildings list, on convertit le clic
-  // world en (q, r) + sub-position pour appeler placeBuilding.
-  const tileMap = useTileMap(state);
-
-  function tileFromWorld(wx: number, wz: number): Tile | null {
-    const [q, r] = worldToAxial(wx, wz);
-    if (!isInsideGrid(q, r)) return null;
-    return tileMap.get(`${q}:${r}`) ?? null;
+  function findBuildingAt(x: number, z: number): string | null {
+    let bestId: string | null = null;
+    let bestDistSq = CLICK_PICK_RADIUS * CLICK_PICK_RADIUS;
+    for (const b of state.buildings) {
+      const dx = b.x - x;
+      const dz = b.z - z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < bestDistSq) {
+        bestDistSq = d2;
+        bestId = b.id;
+      }
+    }
+    return bestId;
   }
 
-  function clickableAt(wx: number, wz: number): boolean {
-    if (selectedKind === null) return false;
-    if (isWaterAt(wx, wz)) return false;
-    const tile = tileFromWorld(wx, wz);
-    if (!tile) return false;
-    return clickableTileKey(tile.q, tile.r);
+  function clickableAt(x: number, z: number): boolean {
+    if (pending) return false;
+    // Mode inspection : on peut cliquer si on tape sur un bâtiment proche.
+    if (selectedKind === null) {
+      return findBuildingAt(x, z) !== null;
+    }
+    if (isReadOnly) return false;
+    if (!isInMapBounds(x, z)) return false;
+    if (isWaterAt(x, z)) return false;
+    // Overlap check.
+    for (const b of state.buildings) {
+      const dx = b.x - x;
+      const dz = b.z - z;
+      if (dx * dx + dz * dz < MIN_BUILDING_SPACING * MIN_BUILDING_SPACING) {
+        return false;
+      }
+    }
+    return true;
   }
 
-  function handleWorldClick(wx: number, wz: number) {
-    const tile = tileFromWorld(wx, wz);
-    if (!tile) return;
-    const [cx, cz] = axialToWorld(tile.q, tile.r);
-    const subX = snapSub(wx - cx);
-    const subZ = snapSub(wz - cz);
-    onTileClick(tile.q, tile.r, subX, subZ);
+  function handleWorldClick(x: number, z: number) {
+    if (selectedKind === null) {
+      const hit = findBuildingAt(x, z);
+      if (hit) onWorldClick(x, z, hit);
+      return;
+    }
+    const snappedX = snapSub(x);
+    const snappedZ = snapSub(z);
+    onWorldClick(snappedX, snappedZ, null);
   }
 
   return (
@@ -153,13 +175,4 @@ export function Scene({
       </EffectComposer>
     </>
   );
-}
-
-function useTileMap(state: GameState): Map<string, Tile> {
-  // Pas de useMemo ici car le composant est simple ; reconstruire à chaque
-  // render est négligeable (~1k entrées). Suffit tant que les tiles n'ont
-  // pas été retirées du backend.
-  const map = new Map<string, Tile>();
-  for (const t of state.tiles) map.set(`${t.q}:${t.r}`, t);
-  return map;
 }

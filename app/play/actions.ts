@@ -65,21 +65,17 @@ export async function loadGameAction(): Promise<LoadGameResult> {
 }
 
 export async function placeBuildingAction(
-  q: number,
-  r: number,
+  x: number,
+  z: number,
   kind: BuildingKind,
-  subX = 0,
-  subZ = 0,
 ): Promise<GameActionResult> {
   try {
-    // playerId vient TOUJOURS du cookie — jamais d'un paramètre client. On ne
-    // peut construire que sur son propre fief.
     const playerId = await getOrCreatePlayerId();
     const now = Date.now();
     const existing = await loadState(playerId);
     const base = existing ?? createInitialState(playerId, now);
     const ticked = tick(base, now);
-    const updated = placeBuilding(ticked, q, r, kind, subX, subZ);
+    const updated = placeBuilding(ticked, x, z, kind);
     await saveState(updated);
     return { ok: true, state: updated };
   } catch (error) {
@@ -88,17 +84,15 @@ export async function placeBuildingAction(
 }
 
 export async function upgradeBuildingAction(
-  q: number,
-  r: number,
+  buildingId: string,
 ): Promise<GameActionResult> {
   try {
-    // playerId vient TOUJOURS du cookie — on n'améliore que son propre fief.
     const playerId = await getOrCreatePlayerId();
     const now = Date.now();
     const existing = await loadState(playerId);
     const base = existing ?? createInitialState(playerId, now);
     const ticked = tick(base, now);
-    const updated = upgradeBuilding(ticked, q, r);
+    const updated = upgradeBuilding(ticked, buildingId);
     await saveState(updated);
     return { ok: true, state: updated };
   } catch (error) {
@@ -107,17 +101,15 @@ export async function upgradeBuildingAction(
 }
 
 export async function sellBuildingAction(
-  q: number,
-  r: number,
+  buildingId: string,
 ): Promise<GameActionResult> {
   try {
-    // playerId vient TOUJOURS du cookie — on ne revend que sur son propre fief.
     const playerId = await getOrCreatePlayerId();
     const now = Date.now();
     const existing = await loadState(playerId);
     const base = existing ?? createInitialState(playerId, now);
     const ticked = tick(base, now);
-    const updated = sellBuilding(ticked, q, r);
+    const updated = sellBuilding(ticked, buildingId);
     await saveState(updated);
     return { ok: true, state: updated };
   } catch (error) {
@@ -126,17 +118,15 @@ export async function sellBuildingAction(
 }
 
 export async function assignWorkerAction(
-  q: number,
-  r: number,
+  buildingId: string,
 ): Promise<GameActionResult> {
   try {
-    // playerId vient TOUJOURS du cookie — on n'assigne que sur son propre fief.
     const playerId = await getOrCreatePlayerId();
     const now = Date.now();
     const existing = await loadState(playerId);
     const base = existing ?? createInitialState(playerId, now);
     const ticked = tick(base, now);
-    const updated = assignWorker(ticked, q, r);
+    const updated = assignWorker(ticked, buildingId);
     await saveState(updated);
     return { ok: true, state: updated };
   } catch (error) {
@@ -145,17 +135,15 @@ export async function assignWorkerAction(
 }
 
 export async function unassignWorkerAction(
-  q: number,
-  r: number,
+  buildingId: string,
 ): Promise<GameActionResult> {
   try {
-    // playerId vient TOUJOURS du cookie — on ne désassigne que son propre fief.
     const playerId = await getOrCreatePlayerId();
     const now = Date.now();
     const existing = await loadState(playerId);
     const base = existing ?? createInitialState(playerId, now);
     const ticked = tick(base, now);
-    const updated = unassignWorker(ticked, q, r);
+    const updated = unassignWorker(ticked, buildingId);
     await saveState(updated);
     return { ok: true, state: updated };
   } catch (error) {

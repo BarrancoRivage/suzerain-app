@@ -45,13 +45,7 @@ export function WorldTerrain({ clickableAt, onWorldClick, onHoverChange }: Props
       onPointerMove={(e) => {
         const wx = e.point.x;
         const wz = e.point.z;
-        // On expose un HoverHit dégradé : la "tile" est synthétique (q=r=0)
-        // — les consommateurs ne doivent regarder que worldX / worldZ.
-        onHoverChange?.({
-          tile: { q: 0, r: 0 } as unknown as HoverHit["tile"],
-          worldX: wx,
-          worldZ: wz,
-        });
+        onHoverChange?.({ worldX: wx, worldZ: wz });
         document.body.style.cursor = clickableAt(wx, wz) ? "pointer" : "not-allowed";
       }}
       onPointerLeave={() => {

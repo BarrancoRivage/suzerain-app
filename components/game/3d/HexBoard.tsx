@@ -8,32 +8,33 @@ import { Scene } from "./Scene";
 type Props = {
   state: GameState;
   selectedKind: BuildingKind | null;
-  clickableTileKey: (q: number, r: number) => boolean;
-  onTileClick: (q: number, r: number, subX?: number, subZ?: number) => void;
+  isReadOnly: boolean;
+  pending: boolean;
+  onWorldClick: (x: number, z: number, hitBuildingId: string | null) => void;
 };
 
 export function HexBoard({
   state,
   selectedKind,
-  clickableTileKey,
-  onTileClick,
+  isReadOnly,
+  pending,
+  onWorldClick,
 }: Props) {
   return (
     <div className="absolute inset-0">
       <Canvas
         shadows
-        // `flat` désactive le tone mapping du renderer — c'est l'EffectComposer
-        // qui s'en charge via la passe ToneMapping ACES_FILMIC.
         flat
         dpr={[1, 2]}
-        camera={{ position: [0, 58, 72], fov: 42, near: 0.1, far: 260 }}
+        camera={{ position: [0, 58, 72], fov: 42, near: 0.1, far: 400 }}
         gl={{ antialias: false, powerPreference: "high-performance" }}
       >
         <Scene
           state={state}
           selectedKind={selectedKind}
-          clickableTileKey={clickableTileKey}
-          onTileClick={onTileClick}
+          isReadOnly={isReadOnly}
+          pending={pending}
+          onWorldClick={onWorldClick}
         />
       </Canvas>
     </div>
