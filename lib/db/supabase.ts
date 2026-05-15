@@ -15,7 +15,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { migrateState } from "../game/engine";
 import { normalizeResources } from "../game/resources";
-import { STATE_VERSION, type GameState, type PlayerSummary } from "../game/types";
+import type { GameState, PlayerSummary } from "../game/types";
 
 let cachedClient: SupabaseClient | null = null;
 
@@ -50,9 +50,6 @@ export async function loadStateSupabase(
   if (!data) return null;
 
   const state = data.state as GameState;
-  if (state.version !== STATE_VERSION) return null;
-  // Normalise les ressources : un état sauvegardé avant l'ajout de ressources
-  // ne porte que les anciennes clés — migrateState complète le reste à 0.
   return migrateState(state);
 }
 

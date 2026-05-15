@@ -8,10 +8,13 @@ import {
   type Object3D,
 } from "three";
 
+import {
+  snapWorld,
+  terrainHeightAt,
+  type WorldPosition,
+} from "@/lib/game/procgen";
 import type { BuildingKind } from "@/lib/game/types";
 
-import { snapSub, type HoverHit } from "./Scene";
-import { heightAt } from "./WorldTerrain";
 import {
   FarmModel,
   HouseModel,
@@ -21,23 +24,22 @@ import {
 
 type Props = {
   selectedKind: BuildingKind | null;
-  hoverHit: HoverHit | null;
+  hoverPosition: WorldPosition | null;
   clickableAt: (x: number, z: number) => boolean;
 };
 
 // Ghost du bâtiment sélectionné : suit la souris sur la surface procédurale,
-// snap à une grille fine (cf. snapSub), tinte en vert/rouge selon
-// constructibilité. Plus aucune notion d'hex ici.
+// snap à une grille fine, puis se teinte selon la constructibilité.
 export function PlacementOverlay({
   selectedKind,
-  hoverHit,
+  hoverPosition,
   clickableAt,
 }: Props) {
-  if (selectedKind === null || hoverHit === null) return null;
+  if (selectedKind === null || hoverPosition === null) return null;
 
-  const x = snapSub(hoverHit.worldX);
-  const z = snapSub(hoverHit.worldZ);
-  const y = heightAt(x, z) + 0.02;
+  const x = snapWorld(hoverPosition.x);
+  const z = snapWorld(hoverPosition.z);
+  const y = terrainHeightAt(x, z) + 0.02;
   const placeable = clickableAt(x, z);
 
   return (

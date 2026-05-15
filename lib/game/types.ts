@@ -1,4 +1,3 @@
-export const GRID_RADIUS = 18; // legacy (back-compat migration uniquement)
 export const STATE_VERSION = 10;
 
 // Ressources du jeu. La data (label, catégorie, ordre, couleur…) vit dans
@@ -43,29 +42,16 @@ export type ResourceCategory = "primary" | "prestige" | "secondary";
 
 export type BuildingKind = "farm" | "mine" | "lumberjack" | "house";
 
-export type Biome =
-  | "plain"
-  | "forest"
-  | "hill"
-  | "mountain"
-  | "desert"
-  | "water";
-
-export type WaterKind = "ocean" | "lake";
-
-export type Building = {
+export type LegacyBuilding = {
   kind: BuildingKind;
   placedAt: number;
   level: number;
   workers: number;
-  // Legacy hex sub-coords — gardé pour back-compat dans le type Tile.
+  // Coordonnées fines des bâtiments posés sur l'ancienne grille hex.
   subX?: number;
   subZ?: number;
 };
 
-// Nouveau modèle : un bâtiment placé n'importe où sur le monde, identifié
-// par un id stable, positionné par (x, z) world coords. Plus de notion de
-// tuile ni de grille hex.
 export type WorldBuilding = {
   id: string;
   kind: BuildingKind;
@@ -76,28 +62,10 @@ export type WorldBuilding = {
   workers: number;
 };
 
-// Chemin (rivière ou route) traversant une tuile. inEdge et outEdge sont des
-// indices d'arête 0..5 (cf. HEX_DIRECTIONS dans lib/game/hex.ts). Quand
-// outEdge ≠ inEdge + 3 (mod 6), le chemin tourne — on utilise alors un tile
-// KayKit en variante courbe (B = 60°, C = 120°).
-export type TilePath = {
-  type: "river" | "road";
-  inEdge: number;
-  outEdge: number;
-};
-
-export type Tile = {
+export type LegacyTile = {
   q: number;
   r: number;
-  biome: Biome;
-  // Données de terrain normalisées [0, 1], générées côté serveur puis
-  // réutilisées par le rendu et la validation gameplay.
-  elevation: number;
-  moisture: number;
-  temperature: number;
-  water: WaterKind | null;
-  building: Building | null;
-  path?: TilePath;
+  building: LegacyBuilding | null;
 };
 
 export type Resources = Record<ResourceKind, number>;
@@ -107,10 +75,9 @@ export type GameState = {
   playerId: string;
   createdAt: number;
   lastTickAt: number;
-  // Liste des bâtiments placés librement sur le monde (world coords).
   buildings: WorldBuilding[];
-  // Conservé pour back-compat (migration v9→v10) — vide après migration.
-  tiles: Tile[];
+  // Conservé uniquement pour migrer les états v9 et plus anciens.
+  tiles: LegacyTile[];
   resources: Resources;
 };
 

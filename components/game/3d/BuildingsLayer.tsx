@@ -3,7 +3,7 @@
 import type { GameState, WorldBuilding } from "@/lib/game/types";
 import { Html } from "@react-three/drei";
 
-import { heightAt } from "./WorldTerrain";
+import { terrainHeightAt } from "@/lib/game/procgen";
 import {
   FarmModel,
   HouseModel,
@@ -11,9 +11,8 @@ import {
   MineModel,
 } from "./models/Models";
 
-// Rendu de tous les bâtiments du joueur. Plus aucune notion d'hex : on
-// itère state.buildings (world coords) et on pose chacun à sa position.
-export function TileContents({ state }: { state: GameState }) {
+// Rendu de tous les bâtiments du joueur en coordonnées monde.
+export function BuildingsLayer({ state }: { state: GameState }) {
   return (
     <>
       {state.buildings.map((b) => (
@@ -24,7 +23,7 @@ export function TileContents({ state }: { state: GameState }) {
 }
 
 function BuildingMesh({ building }: { building: WorldBuilding }) {
-  const y = heightAt(building.x, building.z) + 0.02;
+  const y = terrainHeightAt(building.x, building.z) + 0.02;
   // Rotation déterministe basée sur l'id pour la variété visuelle.
   const rotation = hashRotation(building.id);
   const seed = hashSeed(building.id);

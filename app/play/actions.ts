@@ -53,9 +53,7 @@ export async function loadGameAction(): Promise<LoadGameResult> {
   try {
     const playerId = await getOrCreatePlayerId();
     const now = Date.now();
-    const existing = await loadState(playerId);
-    const base = existing ?? createInitialState(playerId, now);
-    const ticked = tick(base, now);
+    const ticked = await loadOwnTickedState(playerId, now);
     await saveState(ticked);
     const name = await getPlayerName(playerId);
     return { ok: true, state: ticked, playerId, name };
@@ -72,9 +70,7 @@ export async function placeBuildingAction(
   try {
     const playerId = await getOrCreatePlayerId();
     const now = Date.now();
-    const existing = await loadState(playerId);
-    const base = existing ?? createInitialState(playerId, now);
-    const ticked = tick(base, now);
+    const ticked = await loadOwnTickedState(playerId, now);
     const updated = placeBuilding(ticked, x, z, kind);
     await saveState(updated);
     return { ok: true, state: updated };
@@ -89,9 +85,7 @@ export async function upgradeBuildingAction(
   try {
     const playerId = await getOrCreatePlayerId();
     const now = Date.now();
-    const existing = await loadState(playerId);
-    const base = existing ?? createInitialState(playerId, now);
-    const ticked = tick(base, now);
+    const ticked = await loadOwnTickedState(playerId, now);
     const updated = upgradeBuilding(ticked, buildingId);
     await saveState(updated);
     return { ok: true, state: updated };
@@ -106,9 +100,7 @@ export async function sellBuildingAction(
   try {
     const playerId = await getOrCreatePlayerId();
     const now = Date.now();
-    const existing = await loadState(playerId);
-    const base = existing ?? createInitialState(playerId, now);
-    const ticked = tick(base, now);
+    const ticked = await loadOwnTickedState(playerId, now);
     const updated = sellBuilding(ticked, buildingId);
     await saveState(updated);
     return { ok: true, state: updated };
@@ -123,9 +115,7 @@ export async function assignWorkerAction(
   try {
     const playerId = await getOrCreatePlayerId();
     const now = Date.now();
-    const existing = await loadState(playerId);
-    const base = existing ?? createInitialState(playerId, now);
-    const ticked = tick(base, now);
+    const ticked = await loadOwnTickedState(playerId, now);
     const updated = assignWorker(ticked, buildingId);
     await saveState(updated);
     return { ok: true, state: updated };
@@ -140,9 +130,7 @@ export async function unassignWorkerAction(
   try {
     const playerId = await getOrCreatePlayerId();
     const now = Date.now();
-    const existing = await loadState(playerId);
-    const base = existing ?? createInitialState(playerId, now);
-    const ticked = tick(base, now);
+    const ticked = await loadOwnTickedState(playerId, now);
     const updated = unassignWorker(ticked, buildingId);
     await saveState(updated);
     return { ok: true, state: updated };
@@ -193,4 +181,12 @@ export async function listPlayersAction(): Promise<ListPlayersResult> {
   } catch (error) {
     return toErrorResult(error);
   }
+}
+
+async function loadOwnTickedState(
+  playerId: string,
+  now: number,
+): Promise<GameState> {
+  const existing = await loadState(playerId);
+  return tick(existing ?? createInitialState(playerId, now), now);
 }

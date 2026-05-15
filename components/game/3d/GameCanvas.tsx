@@ -13,7 +13,7 @@ type Props = {
   onWorldClick: (x: number, z: number, hitBuildingId: string | null) => void;
 };
 
-export function HexBoard({
+export function GameCanvas({
   state,
   selectedKind,
   isReadOnly,

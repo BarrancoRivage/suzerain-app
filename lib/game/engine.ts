@@ -14,9 +14,9 @@ import {
   workerCapacity,
 } from "./config";
 import {
+  hasBuildingCollision,
   isInMapBounds,
   isWaterAt,
-  MIN_BUILDING_SPACING,
 } from "./procgen";
 import {
   addResources,
@@ -28,9 +28,9 @@ import {
   STATE_VERSION,
   type BuildingKind,
   type GameState,
+  type LegacyTile,
   type ResourceKind,
   type Resources,
-  type Tile,
   type WorldBuilding,
 } from "./types";
 
@@ -81,16 +81,8 @@ export function placeBuilding(
   if (isWaterAt(x, z)) {
     throw new GameError("NOT_BUILDABLE", "On ne bâtit pas sur l'eau.");
   }
-  // Overlap check : distance minimale entre bâtiments.
-  for (const b of state.buildings) {
-    const dx = b.x - x;
-    const dz = b.z - z;
-    if (dx * dx + dz * dz < MIN_BUILDING_SPACING * MIN_BUILDING_SPACING) {
-      throw new GameError(
-        "TILE_OCCUPIED",
-        "Trop près d'un autre bâtiment.",
-      );
-    }
+  if (hasBuildingCollision(state.buildings, x, z)) {
+    throw new GameError("TILE_OCCUPIED", "Trop près d'un autre bâtiment.");
   }
 
   const def = BUILDINGS[kind];
@@ -278,14 +270,14 @@ export function migrateState(state: GameState): GameState {
     : [];
 
   // Migration des anciens états : tile.building → buildings list.
-  if (Array.isArray(state.tiles)) {
+  if (buildings.length === 0 && Array.isArray(state.tiles)) {
     const SQRT3 = Math.sqrt(3);
-    for (const tile of state.tiles as Tile[]) {
+    for (const tile of state.tiles as LegacyTile[]) {
       if (!tile.building) continue;
       const x = SQRT3 * (tile.q + tile.r / 2) + (tile.building.subX ?? 0);
       const z = (3 / 2) * tile.r + (tile.building.subZ ?? 0);
       buildings.push({
-        id: makeBuildingId(),
+        id: legacyBuildingId(tile.q, tile.r),
         kind: tile.building.kind,
         x,
         z,
@@ -314,4 +306,8 @@ function makeBuildingId(): string {
   }
   // Fallback minimaliste (pas un vrai UUID mais unique en pratique).
   return `b_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function legacyBuildingId(q: number, r: number): string {
+  return `legacy_${q}_${r}`;
 }

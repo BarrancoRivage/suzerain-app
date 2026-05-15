@@ -90,7 +90,7 @@ export function ActionPanel({
     content = <ViewingBanner name={viewedName} onReturn={onReturn} />;
   } else if (buildMenuOpen) {
     const status = actionError ?? viewError;
-    const hint = selectedKind ? "Cliquez une tuile pour la poser." : null;
+    const hint = selectedKind ? "Cliquez la carte pour poser le bâtiment." : null;
     content = (
       <div className={SHELL}>
         <div className="mb-3 flex items-center justify-between">

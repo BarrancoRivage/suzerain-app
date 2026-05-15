@@ -11,28 +11,16 @@ import {
 import { BlendFunction, ToneMappingMode } from "postprocessing";
 
 import {
-  MIN_BUILDING_SPACING,
-  isInMapBounds,
-  isWaterAt,
+  canPlaceBuildingAt,
+  snapWorld,
+  type WorldPosition,
 } from "@/lib/game/procgen";
 import type { BuildingKind, GameState } from "@/lib/game/types";
 
+import { BuildingsLayer } from "./BuildingsLayer";
 import { EdgePanControls } from "./EdgePanControls";
 import { PlacementOverlay } from "./PlacementOverlay";
-import { TileContents } from "./TileContents";
 import { WorldTerrain } from "./WorldTerrain";
-
-export type HoverHit = {
-  worldX: number;
-  worldZ: number;
-};
-
-// Snap fin (en world units) pour la position du ghost. 0.25 unit ≈ 25 cm.
-export const SUB_GRID_STEP = 0.25;
-
-export function snapSub(value: number): number {
-  return Math.round(value / SUB_GRID_STEP) * SUB_GRID_STEP;
-}
 
 type Props = {
   state: GameState;
@@ -52,7 +40,7 @@ export function Scene({
   pending,
   onWorldClick,
 }: Props) {
-  const [hoverHit, setHoverHit] = useState<HoverHit | null>(null);
+  const [hoverPosition, setHoverPosition] = useState<WorldPosition | null>(null);
 
   function findBuildingAt(x: number, z: number): string | null {
     let bestId: string | null = null;
@@ -76,17 +64,7 @@ export function Scene({
       return findBuildingAt(x, z) !== null;
     }
     if (isReadOnly) return false;
-    if (!isInMapBounds(x, z)) return false;
-    if (isWaterAt(x, z)) return false;
-    // Overlap check.
-    for (const b of state.buildings) {
-      const dx = b.x - x;
-      const dz = b.z - z;
-      if (dx * dx + dz * dz < MIN_BUILDING_SPACING * MIN_BUILDING_SPACING) {
-        return false;
-      }
-    }
-    return true;
+    return canPlaceBuildingAt(state.buildings, x, z);
   }
 
   function handleWorldClick(x: number, z: number) {
@@ -95,8 +73,8 @@ export function Scene({
       if (hit) onWorldClick(x, z, hit);
       return;
     }
-    const snappedX = snapSub(x);
-    const snappedZ = snapSub(z);
+    const snappedX = snapWorld(x);
+    const snappedZ = snapWorld(z);
     onWorldClick(snappedX, snappedZ, null);
   }
 
@@ -135,12 +113,12 @@ export function Scene({
         <WorldTerrain
           clickableAt={clickableAt}
           onWorldClick={handleWorldClick}
-          onHoverChange={setHoverHit}
+          onHoverChange={setHoverPosition}
         />
-        <TileContents state={state} />
+        <BuildingsLayer state={state} />
         <PlacementOverlay
           selectedKind={selectedKind}
-          hoverHit={hoverHit}
+          hoverPosition={hoverPosition}
           clickableAt={clickableAt}
         />
       </Suspense>

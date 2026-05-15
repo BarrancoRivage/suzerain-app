@@ -26,8 +26,8 @@ import { TreasuryModal } from "./TreasuryModal";
 
 // Canvas WebGL : importé dynamiquement, ssr:false. Le bundle three+R3F+drei
 // ne charge qu'à l'arrivée sur /play, jamais sur la landing.
-const HexBoard = dynamic(
-  () => import("./3d/HexBoard").then((m) => m.HexBoard),
+const GameCanvas = dynamic(
+  () => import("./3d/GameCanvas").then((m) => m.GameCanvas),
   {
     ssr: false,
     loading: () => (
@@ -252,7 +252,7 @@ export function Board() {
 
   return (
     <>
-      <HexBoard
+      <GameCanvas
         state={activeState}
         selectedKind={selectedKind}
         isReadOnly={isReadOnly}

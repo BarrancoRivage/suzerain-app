@@ -5,7 +5,7 @@
 import { Pool } from "pg";
 
 import { migrateState } from "../game/engine";
-import { STATE_VERSION, type GameState, type PlayerSummary } from "../game/types";
+import type { GameState, PlayerSummary } from "../game/types";
 
 let cachedPool: Pool | null = null;
 
@@ -58,8 +58,6 @@ export async function loadStatePg(playerId: string): Promise<GameState | null> {
   );
   if (rows.length === 0) return null;
   const state = rows[0].state;
-  if (state.version !== STATE_VERSION) return null;
-  // Normalise les ressources d'un état sauvegardé avant l'ajout de ressources.
   return migrateState(state);
 }
 
