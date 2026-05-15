@@ -98,6 +98,48 @@ export async function setPlayerNameSupabase(
   }
 }
 
+// UUID impossible utilisé comme sentinelle pour `neq` quand on veut un
+// match-all : Supabase REST refuse les `delete()` sans filtre.
+const NULL_UUID = "00000000-0000-0000-0000-000000000000";
+
+export async function deletePlayerSupabase(playerId: string): Promise<void> {
+  const client = getClient();
+  const stateRes = await client
+    .from("game_states")
+    .delete()
+    .eq("player_id", playerId);
+  if (stateRes.error) {
+    throw new Error(`Supabase deletePlayer (state): ${stateRes.error.message}`);
+  }
+  const playerRes = await client
+    .from("players")
+    .delete()
+    .eq("player_id", playerId);
+  if (playerRes.error) {
+    throw new Error(
+      `Supabase deletePlayer (player): ${playerRes.error.message}`,
+    );
+  }
+}
+
+export async function resetWorldSupabase(): Promise<void> {
+  const client = getClient();
+  const stateRes = await client
+    .from("game_states")
+    .delete()
+    .neq("player_id", NULL_UUID);
+  if (stateRes.error) {
+    throw new Error(`Supabase resetWorld (states): ${stateRes.error.message}`);
+  }
+  const playerRes = await client
+    .from("players")
+    .delete()
+    .neq("player_id", NULL_UUID);
+  if (playerRes.error) {
+    throw new Error(`Supabase resetWorld (players): ${playerRes.error.message}`);
+  }
+}
+
 export async function listPlayersSupabase(): Promise<PlayerSummary[]> {
   // Pas de FK déclarée entre game_states et players : on récupère les deux
   // ensembles et on fait la jointure en mémoire. On charge `state` (et pas

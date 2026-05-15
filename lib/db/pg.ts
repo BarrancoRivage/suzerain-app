@@ -100,6 +100,25 @@ export async function setPlayerNamePg(
   );
 }
 
+// Admin : purge un joueur (son état + sa ligne dans `players`). Deux statements
+// non transactionnels — si la 2e échoue on a un orphelin dans `players`,
+// acceptable en dev (la ligne n'a pas d'impact gameplay sans game_state).
+export async function deletePlayerPg(playerId: string): Promise<void> {
+  await ensurePlayersTable();
+  const pool = getPool();
+  await pool.query("delete from game_states where player_id = $1", [playerId]);
+  await pool.query("delete from players where player_id = $1", [playerId]);
+}
+
+// Admin : purge totale du monde (tous les fiefs, tous les noms). `truncate`
+// avec `restart identity cascade` pour libérer immédiatement les ressources.
+export async function resetWorldPg(): Promise<void> {
+  await ensurePlayersTable();
+  await getPool().query(
+    "truncate table game_states, players restart identity cascade",
+  );
+}
+
 export async function listPlayersPg(): Promise<PlayerSummary[]> {
   await ensurePlayersTable();
   // Scoreboard : prestige extrait du JSONB en SQL (coalesce → 0 si la clé

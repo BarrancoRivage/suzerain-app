@@ -9,16 +9,20 @@
 // mémoïsés). Aucune connexion superflue n'est tentée.
 
 import {
+  deletePlayerPg,
   getPlayerNamePg,
   listPlayersPg,
   loadStatePg,
+  resetWorldPg,
   saveStatePg,
   setPlayerNamePg,
 } from "./db/pg";
 import {
+  deletePlayerSupabase,
   getPlayerNameSupabase,
   listPlayersSupabase,
   loadStateSupabase,
+  resetWorldSupabase,
   saveStateSupabase,
   setPlayerNameSupabase,
 } from "./db/supabase";
@@ -30,6 +34,8 @@ type Backend = {
   getPlayerName: (playerId: string) => Promise<string | null>;
   setPlayerName: (playerId: string, name: string) => Promise<void>;
   listPlayers: () => Promise<PlayerSummary[]>;
+  deletePlayer: (playerId: string) => Promise<void>;
+  resetWorld: () => Promise<void>;
 };
 
 let cachedBackend: Backend | null = null;
@@ -48,6 +54,8 @@ function resolveBackend(): Backend {
       getPlayerName: getPlayerNameSupabase,
       setPlayerName: setPlayerNameSupabase,
       listPlayers: listPlayersSupabase,
+      deletePlayer: deletePlayerSupabase,
+      resetWorld: resetWorldSupabase,
     };
   } else if (process.env.DATABASE_URL) {
     cachedBackend = {
@@ -56,6 +64,8 @@ function resolveBackend(): Backend {
       getPlayerName: getPlayerNamePg,
       setPlayerName: setPlayerNamePg,
       listPlayers: listPlayersPg,
+      deletePlayer: deletePlayerPg,
+      resetWorld: resetWorldPg,
     };
   } else {
     throw new Error(
@@ -90,4 +100,12 @@ export async function setPlayerName(
 
 export async function listPlayers(): Promise<PlayerSummary[]> {
   return resolveBackend().listPlayers();
+}
+
+export async function deletePlayer(playerId: string): Promise<void> {
+  return resolveBackend().deletePlayer(playerId);
+}
+
+export async function resetWorld(): Promise<void> {
+  return resolveBackend().resetWorld();
 }

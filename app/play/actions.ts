@@ -23,6 +23,11 @@ import {
   setPlayerName,
 } from "@/lib/db";
 import { getOrCreatePlayerId } from "@/lib/session";
+import {
+  assertPlayerId,
+  toErrorResult,
+  validateName,
+} from "@/lib/game/validation";
 
 export type GameActionResult =
   | { ok: true; state: GameState }
@@ -43,24 +48,6 @@ export type SetNameResult =
 export type ListPlayersResult =
   | { ok: true; players: PlayerSummary[] }
   | { ok: false; code: string; message: string };
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// Lettres (accents inclus — jeu francophone), chiffres, espace, apostrophe,
-// tiret. 2 à 24 caractères. Rejette les chevrons et caractères de contrôle.
-const NAME_RE = /^[\p{L}\p{N} '\-]{2,24}$/u;
-
-function validateName(rawName: string): string {
-  const name = rawName.trim();
-  if (!NAME_RE.test(name)) {
-    throw new GameError(
-      "INVALID_NAME",
-      "Le nom doit faire 2 à 24 caractères (lettres, chiffres, espace, ' ou -).",
-    );
-  }
-  return name;
-}
 
 export async function loadGameAction(): Promise<LoadGameResult> {
   try {
@@ -191,9 +178,7 @@ export async function loadPlayerStateAction(
   targetPlayerId: string,
 ): Promise<ViewPlayerResult> {
   try {
-    if (!UUID_RE.test(targetPlayerId)) {
-      throw new GameError("INVALID_TARGET", "Joueur introuvable.");
-    }
+    assertPlayerId(targetPlayerId);
     const existing = await loadState(targetPlayerId);
     if (existing === null) {
       throw new GameError(
@@ -218,17 +203,4 @@ export async function listPlayersAction(): Promise<ListPlayersResult> {
   } catch (error) {
     return toErrorResult(error);
   }
-}
-
-function toErrorResult(error: unknown): {
-  ok: false;
-  code: string;
-  message: string;
-} {
-  if (error instanceof GameError) {
-    return { ok: false, code: error.code, message: error.message };
-  }
-  const message =
-    error instanceof Error ? error.message : "Erreur inconnue côté serveur.";
-  return { ok: false, code: "INTERNAL", message };
 }
