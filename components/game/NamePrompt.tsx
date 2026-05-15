@@ -25,7 +25,10 @@ export function NamePrompt({
     trimmed.length >= 2 && trimmed.length <= 24 && !pending;
 
   return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-ink/40 px-6">
+    <div
+      data-no-edge-pan
+      className="fixed inset-0 z-30 flex items-center justify-center bg-ink/40 px-6"
+    >
       <form
         onSubmit={(event) => {
           event.preventDefault();

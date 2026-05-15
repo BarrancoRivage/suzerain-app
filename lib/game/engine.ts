@@ -28,6 +28,7 @@ import {
   type GameState,
   type ResourceKind,
   type Resources,
+  type Tile,
 } from "./types";
 
 export function createInitialState(playerId: string, now: number): GameState {
@@ -73,6 +74,8 @@ export function placeBuilding(
   q: number,
   r: number,
   kind: BuildingKind,
+  subX = 0,
+  subZ = 0,
 ): GameState {
   if (!isInsideGrid(q, r)) {
     throw new GameError("OUT_OF_BOUNDS", "Cette tuile n'existe pas.");
@@ -84,8 +87,8 @@ export function placeBuilding(
   }
 
   const tile = state.tiles[index];
-  if (tile.biome === "water") {
-    throw new GameError("NOT_BUILDABLE", "On ne bâtit pas sur l'eau.");
+  if (!isBuildableTerrain(tile)) {
+    throw new GameError("NOT_BUILDABLE", "Ce terrain n'est pas constructible.");
   }
   if (tile.path) {
     throw new GameError(
@@ -123,10 +126,20 @@ export function placeBuilding(
     nextResources.population += populationCapacityAt(kind, 1);
   }
 
+  // Clamp les sub-coords pour rester dans l'hex (rayon ≈ 0.5).
+  const clampedSubX = Math.max(-0.5, Math.min(0.5, subX));
+  const clampedSubZ = Math.max(-0.5, Math.min(0.5, subZ));
   const nextTiles = state.tiles.slice();
   nextTiles[index] = {
     ...tile,
-    building: { kind, placedAt: state.lastTickAt, level: 1, workers: 0 },
+    building: {
+      kind,
+      placedAt: state.lastTickAt,
+      level: 1,
+      workers: 0,
+      subX: clampedSubX,
+      subZ: clampedSubZ,
+    },
   };
 
   return {
@@ -365,13 +378,52 @@ export function unassignWorker(
 // dans les backends DB (loadState*) — un seul point couvre tous les chemins de
 // chargement. Voir normalizeResources.
 export function migrateState(state: GameState): GameState {
+  const modernTiles = state.tiles.every(
+    (tile) =>
+      typeof tile.elevation === "number" &&
+      typeof tile.moisture === "number" &&
+      typeof tile.temperature === "number" &&
+      "water" in tile,
+  );
+  const tiles = modernTiles
+    ? state.tiles
+    : migrateTilesToCurrentMap(state.playerId, state.tiles);
+
   return {
     ...state,
+    version: STATE_VERSION,
     resources: normalizeResources(state.resources),
-    tiles: state.tiles.map((tile) =>
+    tiles: tiles.map((tile) =>
       tile.building === null
         ? tile
         : { ...tile, building: { ...tile.building, workers: tile.building.workers ?? 0 } },
     ),
   };
+}
+
+function isBuildableTerrain(tile: Tile): boolean {
+  // On bâtit partout sauf sur l'eau. Les montagnes redeviennent
+  // constructibles (le relief les distingue déjà visuellement).
+  return tile.water === null && tile.biome !== "water";
+}
+
+function migrateTilesToCurrentMap(playerId: string, oldTiles: Tile[]): Tile[] {
+  const nextTiles = buildMap(hashString(playerId));
+  const byCoord = new Map(oldTiles.map((tile) => [`${tile.q}:${tile.r}`, tile]));
+
+  return nextTiles.map((tile) => {
+    const old = byCoord.get(`${tile.q}:${tile.r}`);
+    if (!old?.building) return tile;
+
+    // On préserve les bâtiments existants même si la nouvelle procgen place
+    // une rivière/montagne sur l'ancienne coordonnée : c'est une migration de
+    // compatibilité, pas une punition discrète du joueur.
+    return {
+      ...tile,
+      biome: tile.biome === "water" || tile.biome === "mountain" ? "plain" : tile.biome,
+      water: null,
+      path: undefined,
+      building: old.building,
+    };
+  });
 }

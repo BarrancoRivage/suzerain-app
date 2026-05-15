@@ -33,7 +33,10 @@ export function TopBar({
   onEditName,
 }: Props) {
   return (
-    <header className="absolute inset-x-0 top-0 z-20 flex h-12 items-center justify-between gap-4 border-b border-gold/30 bg-parchment px-6 shadow-sm">
+    <header
+      data-no-edge-pan
+      className="absolute inset-x-0 top-0 z-20 flex h-12 items-center justify-between gap-4 border-b border-gold/30 bg-parchment px-6 shadow-sm"
+    >
       <div className="flex shrink-0 items-baseline gap-2">
         <Link
           href="/"

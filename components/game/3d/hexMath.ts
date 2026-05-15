@@ -14,6 +14,37 @@ export function axialToWorld(q: number, r: number): [number, number] {
   return [x, z];
 }
 
+export function worldToAxial(x: number, z: number): [number, number] {
+  const qf = (SQRT3 / 3 * x - z / 3) / HEX_SIZE;
+  const rf = ((2 / 3) * z) / HEX_SIZE;
+  return axialRound(qf, rf);
+}
+
+export function hexCornerOffsets(): Array<[number, number]> {
+  const corners: Array<[number, number]> = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 180) * (30 + i * 60);
+    corners.push([Math.cos(angle) * HEX_SIZE, Math.sin(angle) * HEX_SIZE]);
+  }
+  return corners;
+}
+
+function axialRound(qf: number, rf: number): [number, number] {
+  let q = Math.round(qf);
+  let r = Math.round(rf);
+  let s = Math.round(-qf - rf);
+
+  const qDiff = Math.abs(q - qf);
+  const rDiff = Math.abs(r - rf);
+  const sDiff = Math.abs(s - (-qf - rf));
+
+  if (qDiff > rDiff && qDiff > sDiff) q = -r - s;
+  else if (rDiff > sDiff) r = -q - s;
+  else s = -q - r;
+
+  return [q, r];
+}
+
 // Bruit partagé entre tuiles jouables et sol périphérique pour que les deux
 // suivent le même pattern de relief. Somme de sinus à 3 fréquences basses
 // pour produire des ondulations larges (pas de pics aigus). Rangé dans

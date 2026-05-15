@@ -4,14 +4,20 @@ import { useEffect, useRef } from "react";
 import { Vector3 } from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
+
 // Edge-pan à la Civ / RTS : quand la souris s'approche d'un bord de la
 // fenêtre, on translate la cible des OrbitControls (et la caméra en parallèle,
 // pour conserver l'orbite) dans la direction du bord. Le pan se fait dans le
 // plan XZ, en cohérence avec l'axe « forward » de la caméra projeté à plat.
 
-const EDGE_THRESHOLD_PX = 60;
-const PAN_SPEED = 14; // unités world par seconde à pleine intensité
-const MAX_TARGET_DIST = 28; // ne pas s'éloigner trop loin du disque jouable
+const EDGE_THRESHOLD_PX = 90;
+const NAVBAR_OFFSET_PX = 48;
+const PAN_SPEED = 38;
+const MAX_TARGET_DIST = 120; // dépasse les bords de la map procédurale (~100u half)
+// Le pan est désactivé si la souris survole un overlay UI marqué de
+// l'attribut [data-no-edge-pan]. La barre supérieure, l'ActionPanel, les
+// modales le portent.
+const UI_OVERLAY_SELECTOR = "[data-no-edge-pan]";
 
 type PannableControls = {
   target: Vector3;
@@ -28,7 +34,12 @@ export function EdgePanControls() {
     const onMove = (e: PointerEvent) => {
       mouse.current.x = e.clientX;
       mouse.current.y = e.clientY;
-      mouse.current.active = true;
+      // Désactive l'edge-pan quand le curseur survole un overlay UI : le
+      // joueur ne veut pas que la caméra pane quand il vise la TopBar ou
+      // un panneau. On regarde toute la chaîne d'ancêtres.
+      const target = e.target as Element | null;
+      const onUi = target?.closest(UI_OVERLAY_SELECTOR) !== null && target !== null;
+      mouse.current.active = !onUi;
     };
     const onLeave = () => {
       mouse.current.active = false;
@@ -52,8 +63,12 @@ export function EdgePanControls() {
     else if (x > width - EDGE_THRESHOLD_PX) {
       px = (x - (width - EDGE_THRESHOLD_PX)) / EDGE_THRESHOLD_PX;
     }
-    if (y < EDGE_THRESHOLD_PX) py = -(1 - y / EDGE_THRESHOLD_PX);
-    else if (y > height - EDGE_THRESHOLD_PX) {
+    // Le trigger top démarre juste en dessous de la navbar (qui couvre
+    // 0..NAVBAR_OFFSET_PX), pour qu'on ait une vraie marge de pan vers
+    // le nord sans devoir survoler la navbar (et donc désactiver l'edge-pan).
+    if (y >= NAVBAR_OFFSET_PX && y < NAVBAR_OFFSET_PX + EDGE_THRESHOLD_PX) {
+      py = -(1 - (y - NAVBAR_OFFSET_PX) / EDGE_THRESHOLD_PX);
+    } else if (y > height - EDGE_THRESHOLD_PX) {
       py = (y - (height - EDGE_THRESHOLD_PX)) / EDGE_THRESHOLD_PX;
     }
     if (px === 0 && py === 0) return;

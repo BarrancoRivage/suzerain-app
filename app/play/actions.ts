@@ -68,6 +68,8 @@ export async function placeBuildingAction(
   q: number,
   r: number,
   kind: BuildingKind,
+  subX = 0,
+  subZ = 0,
 ): Promise<GameActionResult> {
   try {
     // playerId vient TOUJOURS du cookie — jamais d'un paramètre client. On ne
@@ -77,7 +79,7 @@ export async function placeBuildingAction(
     const existing = await loadState(playerId);
     const base = existing ?? createInitialState(playerId, now);
     const ticked = tick(base, now);
-    const updated = placeBuilding(ticked, q, r, kind);
+    const updated = placeBuilding(ticked, q, r, kind, subX, subZ);
     await saveState(updated);
     return { ok: true, state: updated };
   } catch (error) {

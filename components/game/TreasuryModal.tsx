@@ -47,6 +47,7 @@ export function TreasuryModal({ state, onClose }: Props) {
 
   return (
     <div
+      data-no-edge-pan
       className="fixed inset-0 z-30 flex items-center justify-center bg-ink/40 px-6"
       onClick={onClose}
     >

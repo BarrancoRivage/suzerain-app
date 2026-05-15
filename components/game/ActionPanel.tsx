@@ -134,7 +134,10 @@ export function ActionPanel({
   }
 
   return (
-    <div className="pointer-events-none absolute bottom-8 left-6 z-10 flex flex-col items-start gap-2">
+    <div
+      data-no-edge-pan
+      className="pointer-events-none absolute bottom-8 left-6 z-10 flex flex-col items-start gap-2"
+    >
       <div className="pointer-events-auto">{content}</div>
     </div>
   );

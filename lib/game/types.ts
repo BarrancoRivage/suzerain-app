@@ -1,5 +1,5 @@
-export const GRID_RADIUS = 6;
-export const STATE_VERSION = 8;
+export const GRID_RADIUS = 18; // legacy (back-compat migration uniquement)
+export const STATE_VERSION = 10;
 
 // Ressources du jeu. La data (label, catégorie, ordre, couleur…) vit dans
 // lib/game/resources.ts — ce fichier ne porte QUE les types pour rester la
@@ -43,14 +43,36 @@ export type ResourceCategory = "primary" | "prestige" | "secondary";
 
 export type BuildingKind = "farm" | "mine" | "lumberjack" | "house";
 
-export type Biome = "plain" | "forest" | "hill" | "water";
+export type Biome =
+  | "plain"
+  | "forest"
+  | "hill"
+  | "mountain"
+  | "desert"
+  | "water";
+
+export type WaterKind = "ocean" | "lake";
 
 export type Building = {
   kind: BuildingKind;
   placedAt: number;
   level: number;
-  // Population assignée à ce bâtiment. Les bâtiments de production ne produisent
-  // qu'en fonction de ce nombre ; les maisons l'ignorent (toujours 0).
+  workers: number;
+  // Legacy hex sub-coords — gardé pour back-compat dans le type Tile.
+  subX?: number;
+  subZ?: number;
+};
+
+// Nouveau modèle : un bâtiment placé n'importe où sur le monde, identifié
+// par un id stable, positionné par (x, z) world coords. Plus de notion de
+// tuile ni de grille hex.
+export type WorldBuilding = {
+  id: string;
+  kind: BuildingKind;
+  x: number;
+  z: number;
+  placedAt: number;
+  level: number;
   workers: number;
 };
 
@@ -68,6 +90,12 @@ export type Tile = {
   q: number;
   r: number;
   biome: Biome;
+  // Données de terrain normalisées [0, 1], générées côté serveur puis
+  // réutilisées par le rendu et la validation gameplay.
+  elevation: number;
+  moisture: number;
+  temperature: number;
+  water: WaterKind | null;
   building: Building | null;
   path?: TilePath;
 };
@@ -79,6 +107,9 @@ export type GameState = {
   playerId: string;
   createdAt: number;
   lastTickAt: number;
+  // Liste des bâtiments placés librement sur le monde (world coords).
+  buildings: WorldBuilding[];
+  // Conservé pour back-compat (migration v9→v10) — vide après migration.
   tiles: Tile[];
   resources: Resources;
 };

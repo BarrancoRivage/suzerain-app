@@ -150,7 +150,7 @@ export function Board() {
     });
   }
 
-  function handleTileClick(q: number, r: number) {
+  function handleTileClick(q: number, r: number, subX = 0, subZ = 0) {
     // Mode inspection : aucun bâtiment sélectionné → cliquer un bâtiment ouvre
     // le panneau latéral (fonctionne aussi en lecture seule, pour visiter).
     if (selectedKind === null) {
@@ -163,12 +163,13 @@ export function Board() {
       return;
     }
 
-    // Mode pose.
+    // Mode pose. La sub-position (subX, subZ) provient du clic réel sur le
+    // terrain, snappée à la fine grid dans WorldTerrain → l'engine clampe.
     if (isReadOnly || pending) return;
     const kind = selectedKind;
     setActionError(null);
     startTransition(async () => {
-      const res = await placeBuildingAction(q, r, kind);
+      const res = await placeBuildingAction(q, r, kind, subX, subZ);
       if (res.ok) {
         setOwnState(res.state);
         setSelectedKind(null);
@@ -264,6 +265,8 @@ export function Board() {
     if (selectedKind === null) return tile.building !== null;
     // Mode pose : tuile vide et constructible, sur son propre fief.
     if (isReadOnly) return false;
+    // Construire partout sauf eau et chemins (rivière/route bloquent la
+    // pose — mais les montagnes sont OK).
     if (tile.biome === "water") return false;
     if (tile.path) return false;
     return tile.building === null;
@@ -282,6 +285,7 @@ export function Board() {
     <>
       <HexBoard
         state={activeState}
+        selectedKind={selectedKind}
         clickableTileKey={isClickable}
         onTileClick={handleTileClick}
       />

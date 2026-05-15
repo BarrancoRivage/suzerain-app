@@ -2,16 +2,22 @@
 
 import { Canvas } from "@react-three/fiber";
 
-import type { GameState } from "@/lib/game/types";
+import type { BuildingKind, GameState } from "@/lib/game/types";
 import { Scene } from "./Scene";
 
 type Props = {
   state: GameState;
+  selectedKind: BuildingKind | null;
   clickableTileKey: (q: number, r: number) => boolean;
-  onTileClick: (q: number, r: number) => void;
+  onTileClick: (q: number, r: number, subX?: number, subZ?: number) => void;
 };
 
-export function HexBoard({ state, clickableTileKey, onTileClick }: Props) {
+export function HexBoard({
+  state,
+  selectedKind,
+  clickableTileKey,
+  onTileClick,
+}: Props) {
   return (
     <div className="absolute inset-0">
       <Canvas
@@ -20,11 +26,12 @@ export function HexBoard({ state, clickableTileKey, onTileClick }: Props) {
         // qui s'en charge via la passe ToneMapping ACES_FILMIC.
         flat
         dpr={[1, 2]}
-        camera={{ position: [0, 22, 28], fov: 38, near: 0.1, far: 150 }}
+        camera={{ position: [0, 58, 72], fov: 42, near: 0.1, far: 260 }}
         gl={{ antialias: false, powerPreference: "high-performance" }}
       >
         <Scene
           state={state}
+          selectedKind={selectedKind}
           clickableTileKey={clickableTileKey}
           onTileClick={onTileClick}
         />
