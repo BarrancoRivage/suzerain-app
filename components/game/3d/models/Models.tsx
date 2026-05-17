@@ -14,6 +14,12 @@ const PATHS = {
   homeB: "/models/kaykit/buildings_red/building_home_B_red.gltf",
   mine: "/models/kaykit/buildings_red/building_mine_red.gltf",
   lumbermill: "/models/kaykit/buildings_red/building_lumbermill_red.gltf",
+  // Pas d'asset « carrière » dans le pack KayKit : on réutilise blacksmith
+  // (forge) — silhouette robuste en pierre, lecture cohérente avec extraction.
+  blacksmith: "/models/kaykit/buildings_red/building_blacksmith_red.gltf",
+  // Hôtel de ville : on prend le château, silhouette imposante cohérente avec
+  // un bâtiment civique unique.
+  castle: "/models/kaykit/buildings_red/building_castle_red.gltf",
 } as const;
 
 Object.values(PATHS).forEach((path) => useGLTF.preload(path));
@@ -52,4 +58,12 @@ export function LumberjackModel() {
 
 export function HouseModel() {
   return <KayKit path={PATHS.homeA} />;
+}
+
+export function QuarryModel() {
+  return <KayKit path={PATHS.blacksmith} />;
+}
+
+export function TownHallModel() {
+  return <KayKit path={PATHS.castle} />;
 }

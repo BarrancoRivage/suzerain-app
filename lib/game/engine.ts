@@ -23,6 +23,7 @@ import {
   emptyResources,
   normalizeResources,
 } from "./resources";
+import { TECHS } from "./techs";
 import {
   GameError,
   STATE_VERSION,
@@ -31,6 +32,7 @@ import {
   type LegacyTile,
   type ResourceKind,
   type Resources,
+  type TechKind,
   type WorldBuilding,
 } from "./types";
 
@@ -43,14 +45,21 @@ export function createInitialState(playerId: string, now: number): GameState {
     buildings: [],
     tiles: [],
     resources: { ...emptyResources(), gold: 100, wood: 20 },
+    unlockedTechs: [],
   };
 }
 
-// Production réelle par seconde d'un bâtiment = taux par ouvrier × ouvriers
-// assignés. Les bâtiments d'habitation produisent 0 (population à la pose).
-export function effectiveRate(building: WorldBuilding): number {
+// Production réelle par seconde d'un bâtiment = taux par ouvrier × ouvriers ×
+// multiplicateur de tech. Les bâtiments d'habitation produisent 0 (population
+// à la pose). `state` est requis pour appliquer les bonus de tech ; le passer
+// systématiquement évite des valeurs silencieusement fausses dans l'UI.
+export function effectiveRate(
+  building: WorldBuilding,
+  state: GameState,
+): number {
   if (isHousing(building.kind)) return 0;
-  return buildingRate(building.kind, building.level) * building.workers;
+  const base = buildingRate(building.kind, building.level) * building.workers;
+  return base * getProductionMultiplier(state, building.kind);
 }
 
 export function tick(state: GameState, now: number): GameState {
@@ -60,7 +69,7 @@ export function tick(state: GameState, now: number): GameState {
   const produced = emptyResources();
   for (const b of state.buildings) {
     const def = BUILDINGS[b.kind];
-    produced[def.produces] += effectiveRate(b) * elapsedSeconds;
+    produced[def.produces] += effectiveRate(b, state) * elapsedSeconds;
   }
   return {
     ...state,
@@ -83,6 +92,15 @@ export function placeBuilding(
   }
   if (hasBuildingCollision(state.buildings, x, z)) {
     throw new GameError("TILE_OCCUPIED", "Trop près d'un autre bâtiment.");
+  }
+  // Bâtiments uniques : l'Hôtel de ville n'est autorisé qu'à un seul
+  // exemplaire. Garde-fou serveur (l'UI le reflète aussi en désactivant
+  // le bouton).
+  if (kind === "town_hall" && countBuildings(state, "town_hall") > 0) {
+    throw new GameError(
+      "ALREADY_BUILT",
+      "Un Hôtel de ville existe déjà — un seul est autorisé par fief.",
+    );
   }
 
   const def = BUILDINGS[kind];
@@ -127,10 +145,14 @@ export function upgradeBuilding(
   buildingId: string,
 ): GameState {
   const { index, building } = findBuildingById(state, buildingId);
-  if (isMaxLevel(building.kind, building.level)) {
+  if (isMaxLevel(building.kind, building.level, getMaxLevelBonus(state))) {
     throw new GameError("MAX_LEVEL", "Ce bâtiment est déjà au niveau maximal.");
   }
-  const cost = upgradeCost(building.kind, building.level);
+  const cost = upgradeCost(
+    building.kind,
+    building.level,
+    getUpgradeCostMultiplier(state),
+  );
   for (const [resource, amount] of Object.entries(cost) as Array<
     [ResourceKind, number]
   >) {
@@ -190,9 +212,102 @@ export function productionPerSecond(state: GameState): Resources {
   const total = emptyResources();
   for (const b of state.buildings) {
     const def = BUILDINGS[b.kind];
-    total[def.produces] += effectiveRate(b);
+    total[def.produces] += effectiveRate(b, state);
   }
   return total;
+}
+
+// Vrai si le joueur possède au moins un Hôtel de ville. Pilote l'affichage de
+// la pastille science du HUD et la disponibilité du bouton « Science ».
+export function hasTownHall(state: GameState): boolean {
+  return countBuildings(state, "town_hall") > 0;
+}
+
+// Nombre de bâtiments d'un type donné sur le fief. Utilisé pour le garde-fou
+// d'unicité (Hôtel de ville) — réutilisable pour de futurs bâtiments uniques.
+export function countBuildings(state: GameState, kind: BuildingKind): number {
+  let n = 0;
+  for (const b of state.buildings) {
+    if (b.kind === kind) n += 1;
+  }
+  return n;
+}
+
+// --- Modificateurs de tech : agrégation centralisée ---
+
+// Multiplicateur de production pour un bâtiment, dérivé des techs débloquées.
+// Bonus additifs (1 + Σ deltas). Appelé par effectiveRate.
+export function getProductionMultiplier(
+  state: GameState,
+  kind: BuildingKind,
+): number {
+  let bonus = 0;
+  for (const tech of state.unlockedTechs) {
+    const productionBonus = TECHS[tech].effect.productionBonus;
+    const delta = productionBonus?.[kind];
+    if (delta) bonus += delta;
+  }
+  return 1 + bonus;
+}
+
+// Multiplicateur du coût d'amélioration (réduction). Cap inférieur à 0.1 pour
+// éviter un coût quasi nul si l'on cumulait beaucoup de techs plus tard.
+export function getUpgradeCostMultiplier(state: GameState): number {
+  let reduction = 0;
+  for (const tech of state.unlockedTechs) {
+    reduction += TECHS[tech].effect.upgradeCostReduction ?? 0;
+  }
+  return Math.max(0.1, 1 - reduction);
+}
+
+// Bonus de maxLevel agrégé. Appliqué à tous les bâtiments. Capé à +10 pour
+// éviter un débordement absurde (doublerait le maxLevel par défaut).
+export function getMaxLevelBonus(state: GameState): number {
+  let bonus = 0;
+  for (const tech of state.unlockedTechs) {
+    bonus += TECHS[tech].effect.maxLevelBonus ?? 0;
+  }
+  return Math.min(10, bonus);
+}
+
+// Recherche une tech : dépense la science, ajoute à unlockedTechs. Lève
+// NO_TOWN_HALL / TECH_LOCKED / ALREADY_UNLOCKED / INSUFFICIENT_RESOURCES.
+export function unlockTech(state: GameState, techKind: TechKind): GameState {
+  if (!hasTownHall(state)) {
+    throw new GameError(
+      "NO_TOWN_HALL",
+      "Un Hôtel de ville est requis pour rechercher des technologies.",
+    );
+  }
+  const def = TECHS[techKind];
+  if (state.unlockedTechs.includes(techKind)) {
+    throw new GameError(
+      "ALREADY_UNLOCKED",
+      "Cette technologie est déjà connue.",
+    );
+  }
+  for (const req of def.requires) {
+    if (!state.unlockedTechs.includes(req)) {
+      throw new GameError(
+        "TECH_LOCKED",
+        `Prérequis manquant : ${TECHS[req].label}.`,
+      );
+    }
+  }
+  if (state.resources.science < def.requiredScience) {
+    throw new GameError(
+      "INSUFFICIENT_RESOURCES",
+      `Il faut ${def.requiredScience} science pour rechercher ${def.label}.`,
+    );
+  }
+  return {
+    ...state,
+    resources: {
+      ...state.resources,
+      science: state.resources.science - def.requiredScience,
+    },
+    unlockedTechs: [...state.unlockedTechs, techKind],
+  };
 }
 
 export function assignedPopulation(state: GameState): number {
@@ -288,6 +403,11 @@ export function migrateState(state: GameState): GameState {
     }
   }
 
+  const rawTechs = (state as { unlockedTechs?: unknown }).unlockedTechs;
+  const unlockedTechs: TechKind[] = Array.isArray(rawTechs)
+    ? rawTechs.filter((t): t is TechKind => typeof t === "string" && t in TECHS)
+    : [];
+
   return {
     version: STATE_VERSION,
     playerId: state.playerId,
@@ -296,6 +416,7 @@ export function migrateState(state: GameState): GameState {
     buildings,
     tiles: [], // tile data n'est plus utilisée par le rendu ni l'engine
     resources: normalizeResources(state.resources),
+    unlockedTechs,
   };
 }
 

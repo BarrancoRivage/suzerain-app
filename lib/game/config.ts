@@ -81,16 +81,41 @@ export const GAME_CONFIG: Readonly<Record<BuildingKind, BuildingConfig>> = {
     populationCapacity: 3,
     populationGrowthPerLevel: 2,
   },
+  quarry: {
+    label: "Carrière",
+    description: "Extrait de la pierre — les ouvriers taillent la roche brute.",
+    produces: "stone",
+    baseRatePerSecond: 0.1,
+    baseCost: { gold: 25, wood: 10 },
+    baseUpgradeCost: { gold: 25, wood: 15 },
+    upgradeCostFactor: 1.6,
+    rateGrowthPerLevel: 0.08,
+    maxLevel: 10,
+  },
+  town_hall: {
+    label: "Hôtel de ville",
+    description: "Cœur civique du fief — produit de la science et débloque l'arbre des savoirs.",
+    produces: "science",
+    baseRatePerSecond: 0.05,
+    baseCost: { gold: 50, wood: 30, stone: 20 },
+    baseUpgradeCost: { gold: 60, stone: 30 },
+    upgradeCostFactor: 1.7,
+    rateGrowthPerLevel: 0.04,
+    maxLevel: 5,
+  },
 };
 
 // Coût pour faire passer un bâtiment de `level` à `level + 1`.
 // EXPONENTIEL : baseUpgradeCost * upgradeCostFactor^(level-1), arrondi au sup.
+// `costMultiplier` (défaut 1) applique une réduction/majoration globale —
+// utilisé par l'engine pour répercuter les techs (civil_engineering = 0.8).
 export function upgradeCost(
   kind: BuildingKind,
   level: number,
+  costMultiplier = 1,
 ): Partial<Record<ResourceKind, number>> {
   const cfg = GAME_CONFIG[kind];
-  const multiplier = Math.pow(cfg.upgradeCostFactor, level - 1);
+  const multiplier = Math.pow(cfg.upgradeCostFactor, level - 1) * costMultiplier;
   const cost: Partial<Record<ResourceKind, number>> = {};
   for (const [resource, amount] of Object.entries(cfg.baseUpgradeCost) as Array<
     [ResourceKind, number]
@@ -109,8 +134,14 @@ export function buildingRate(kind: BuildingKind, level: number): number {
   return cfg.baseRatePerSecond + cfg.rateGrowthPerLevel * (level - 1);
 }
 
-export function isMaxLevel(kind: BuildingKind, level: number): boolean {
-  return level >= GAME_CONFIG[kind].maxLevel;
+// `maxLevelBonus` (défaut 0) : extension du plafond par les techs (ex.
+// architecture = +2). L'engine passe getMaxLevelBonus(state).
+export function isMaxLevel(
+  kind: BuildingKind,
+  level: number,
+  maxLevelBonus = 0,
+): boolean {
+  return level >= GAME_CONFIG[kind].maxLevel + maxLevelBonus;
 }
 
 // Un bâtiment de logement (maison) : fournit de la population au lieu de

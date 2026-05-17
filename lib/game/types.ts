@@ -1,4 +1,4 @@
-export const STATE_VERSION = 10;
+export const STATE_VERSION = 11;
 
 // Ressources du jeu. La data (label, catégorie, ordre, couleur…) vit dans
 // lib/game/resources.ts — ce fichier ne porte QUE les types pour rester la
@@ -40,7 +40,21 @@ export type ResourceKind =
 
 export type ResourceCategory = "primary" | "prestige" | "secondary";
 
-export type BuildingKind = "farm" | "mine" | "lumberjack" | "house";
+export type BuildingKind =
+  | "farm"
+  | "mine"
+  | "lumberjack"
+  | "house"
+  | "quarry"
+  | "town_hall";
+
+// Nœuds de l'arbre de science. Définition et effets dans lib/game/techs.ts.
+export type TechKind =
+  | "stonemasonry"
+  | "crop_rotation"
+  | "advanced_tools"
+  | "architecture"
+  | "civil_engineering";
 
 export type LegacyBuilding = {
   kind: BuildingKind;
@@ -79,6 +93,10 @@ export type GameState = {
   // Conservé uniquement pour migrer les états v9 et plus anciens.
   tiles: LegacyTile[];
   resources: Resources;
+  // Techs débloquées par le joueur. Vide tant qu'aucun Hôtel de ville n'a été
+  // bâti ; l'engine refuse unlockTech sans HDV. Les effets sont agrégés via
+  // getProductionMultiplier / getUpgradeCostMultiplier / getMaxLevelBonus.
+  unlockedTechs: TechKind[];
 };
 
 // Entrée de la liste des joueurs (panneau multijoueur). name vaut null tant

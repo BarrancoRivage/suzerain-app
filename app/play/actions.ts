@@ -8,12 +8,14 @@ import {
   sellBuilding,
   tick,
   unassignWorker,
+  unlockTech,
   upgradeBuilding,
 } from "@/lib/game/engine";
 import type {
   BuildingKind,
   GameState,
   PlayerSummary,
+  TechKind,
 } from "@/lib/game/types";
 import {
   getPlayerName,
@@ -169,6 +171,21 @@ export async function loadPlayerStateAction(
     const ticked = tick(existing, Date.now());
     const name = await getPlayerName(targetPlayerId);
     return { ok: true, state: ticked, playerId: targetPlayerId, name };
+  } catch (error) {
+    return toErrorResult(error);
+  }
+}
+
+export async function unlockTechAction(
+  techKind: TechKind,
+): Promise<GameActionResult> {
+  try {
+    const playerId = await getOrCreatePlayerId();
+    const now = Date.now();
+    const ticked = await loadOwnTickedState(playerId, now);
+    const updated = unlockTech(ticked, techKind);
+    await saveState(updated);
+    return { ok: true, state: updated };
   } catch (error) {
     return toErrorResult(error);
   }

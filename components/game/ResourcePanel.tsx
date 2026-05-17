@@ -1,6 +1,10 @@
 "use client";
 
-import { assignedPopulation, availablePopulation } from "@/lib/game/engine";
+import {
+  assignedPopulation,
+  availablePopulation,
+  hasTownHall,
+} from "@/lib/game/engine";
 import {
   formatAmount,
   RESOURCES,
@@ -15,6 +19,8 @@ import { useAnimatedResources } from "./useAnimatedResources";
 // d'acquisition (`+x.xx/s`). Cas particulier de la population : pas de taux,
 // mais le rapport `disponible / utilisée`. Le prestige et les 22 ressources
 // secondaires ne sont PAS ici — uniquement dans la modale Trésorerie.
+// La science est masquée tant qu'aucun Hôtel de ville n'est bâti — elle
+// apparaît à la pose de l'HDV (cf. hasTownHall).
 const PRIMARY = resourcesByCategory("primary");
 
 type Props = {
@@ -25,10 +31,13 @@ export function ResourcePanel({ state }: Props) {
   const { displayed, rates } = useAnimatedResources(state);
   const available = availablePopulation(state);
   const assigned = assignedPopulation(state);
+  const primary = hasTownHall(state)
+    ? PRIMARY
+    : PRIMARY.filter((kind) => kind !== "science");
 
   return (
     <div className="flex items-center gap-0.5">
-      {PRIMARY.map((kind) => {
+      {primary.map((kind) => {
         const def = RESOURCES[kind];
         const isPopulation = kind === "population";
         const rate = rates[kind];

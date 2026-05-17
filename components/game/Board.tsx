@@ -12,15 +12,18 @@ import {
   sellBuildingAction,
   setPlayerNameAction,
   unassignWorkerAction,
+  unlockTechAction,
   upgradeBuildingAction,
 } from "@/app/play/actions";
 import type {
   BuildingKind,
   GameState,
   PlayerSummary,
+  TechKind,
 } from "@/lib/game/types";
 import { ActionPanel } from "./ActionPanel";
 import { NamePrompt } from "./NamePrompt";
+import { ScienceModal } from "./ScienceModal";
 import { TopBar } from "./TopBar";
 import { TreasuryModal } from "./TreasuryModal";
 
@@ -57,6 +60,7 @@ export function Board() {
 
   const [namePromptOpen, setNamePromptOpen] = useState(false);
   const [treasuryOpen, setTreasuryOpen] = useState(false);
+  const [scienceOpen, setScienceOpen] = useState(false);
   const [selectedKind, setSelectedKind] = useState<BuildingKind | null>(null);
   // Menu de construction déplié dans le panneau d'actions. Invariant :
   // selectedKind !== null implique buildMenuOpen === true.
@@ -223,6 +227,16 @@ export function Board() {
     });
   }
 
+  function handleUnlockTech(techKind: TechKind) {
+    if (isReadOnly || pending) return;
+    setActionError(null);
+    startTransition(async () => {
+      const res = await unlockTechAction(techKind);
+      if (res.ok) setOwnState(res.state);
+      else setActionError(res.message);
+    });
+  }
+
   if (loadError !== null) {
     return (
       <div className="absolute inset-0 flex items-center justify-center">
@@ -268,6 +282,7 @@ export function Board() {
         ownName={ownName}
         onSelectPlayer={handleSelectPlayer}
         onOpenTreasury={() => setTreasuryOpen(true)}
+        onOpenScience={() => setScienceOpen(true)}
         onEditName={() => {
           setNameError(null);
           setNamePromptOpen(true);
@@ -282,7 +297,6 @@ export function Board() {
         onCloseBuildMenu={handleCloseBuildMenu}
         selectedKind={selectedKind}
         onSelect={setSelectedKind}
-        resources={activeState.resources}
         inspectedBuilding={inspectedBuilding}
         state={activeState}
         onUpgrade={handleUpgrade}
@@ -310,6 +324,17 @@ export function Board() {
         <TreasuryModal
           state={activeState}
           onClose={() => setTreasuryOpen(false)}
+        />
+      )}
+
+      {scienceOpen && (
+        <ScienceModal
+          state={activeState}
+          readOnly={isReadOnly}
+          pending={pending}
+          error={actionError}
+          onUnlock={handleUnlockTech}
+          onClose={() => setScienceOpen(false)}
         />
       )}
     </>

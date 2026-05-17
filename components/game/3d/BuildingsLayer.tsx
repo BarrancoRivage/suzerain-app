@@ -9,6 +9,8 @@ import {
   HouseModel,
   LumberjackModel,
   MineModel,
+  QuarryModel,
+  TownHallModel,
 } from "./models/Models";
 
 // Rendu de tous les bâtiments du joueur en coordonnées monde.
@@ -35,6 +37,8 @@ function BuildingMesh({ building }: { building: WorldBuilding }) {
         {building.kind === "lumberjack" && <LumberjackModel />}
         {building.kind === "house" && <HouseModel />}
         {building.kind === "mine" && <MineModel />}
+        {building.kind === "quarry" && <QuarryModel />}
+        {building.kind === "town_hall" && <TownHallModel />}
       </group>
       <Html
         position={[0, 1.7, 0]}
