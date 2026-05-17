@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { hasTownHall } from "@/lib/game/engine";
 import type { GameState, PlayerSummary } from "@/lib/game/types";
 import { PlayerList } from "./PlayerList";
 import { ResourcePanel } from "./ResourcePanel";
@@ -15,6 +16,7 @@ type Props = {
   ownName: string | null;
   onSelectPlayer: (playerId: string) => void;
   onOpenTreasury: () => void;
+  onOpenScience: () => void;
   onEditName: () => void;
 };
 
@@ -30,8 +32,10 @@ export function TopBar({
   ownName,
   onSelectPlayer,
   onOpenTreasury,
+  onOpenScience,
   onEditName,
 }: Props) {
+  const scienceUnlocked = hasTownHall(state);
   return (
     <header
       data-no-edge-pan
@@ -73,6 +77,16 @@ export function TopBar({
         >
           Trésorerie
         </button>
+
+        {scienceUnlocked && (
+          <button
+            type="button"
+            onClick={onOpenScience}
+            className="rounded-md border border-sky-700/40 px-3 py-1.5 font-sans text-xs uppercase tracking-widest text-ink/70 transition-colors hover:border-sky-700 hover:text-ink"
+          >
+            Science
+          </button>
+        )}
 
         <TopBarMenu label="Mon fief">
           {(close) => (

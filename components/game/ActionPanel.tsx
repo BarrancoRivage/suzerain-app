@@ -3,7 +3,6 @@
 import type {
   BuildingKind,
   GameState,
-  Resources,
   WorldBuilding,
 } from "@/lib/game/types";
 import { BuildPanel } from "./BuildPanel";
@@ -18,7 +17,6 @@ type Props = {
   onCloseBuildMenu: () => void;
   selectedKind: BuildingKind | null;
   onSelect: (kind: BuildingKind | null) => void;
-  resources: Resources;
   inspectedBuilding: WorldBuilding | null;
   state: GameState;
   onUpgrade: () => void;
@@ -49,7 +47,6 @@ export function ActionPanel({
   onCloseBuildMenu,
   selectedKind,
   onSelect,
-  resources,
   inspectedBuilding,
   state,
   onUpgrade,
@@ -110,7 +107,7 @@ export function ActionPanel({
           selected={selectedKind}
           onSelect={onSelect}
           disabled={pending}
-          resources={resources}
+          state={state}
         />
         <div className="mt-3 h-4 font-serif text-xs italic text-blood/80">
           {status ?? hint ?? " "}

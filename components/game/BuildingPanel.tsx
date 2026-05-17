@@ -10,7 +10,12 @@ import {
   upgradeCost,
   workerCapacity,
 } from "@/lib/game/config";
-import { availablePopulation, effectiveRate } from "@/lib/game/engine";
+import {
+  availablePopulation,
+  effectiveRate,
+  getMaxLevelBonus,
+  getUpgradeCostMultiplier,
+} from "@/lib/game/engine";
 import type {
   BuildingKind,
   GameState,
@@ -21,6 +26,8 @@ import { FarmIcon } from "./icons/FarmIcon";
 import { HouseIcon } from "./icons/HouseIcon";
 import { LumberjackIcon } from "./icons/LumberjackIcon";
 import { MineIcon } from "./icons/MineIcon";
+import { QuarryIcon } from "./icons/QuarryIcon";
+import { TownHallIcon } from "./icons/TownHallIcon";
 import { useAnimatedResources } from "./useAnimatedResources";
 
 const ICONS: Record<BuildingKind, typeof FarmIcon> = {
@@ -28,6 +35,8 @@ const ICONS: Record<BuildingKind, typeof FarmIcon> = {
   mine: MineIcon,
   lumberjack: LumberjackIcon,
   house: HouseIcon,
+  quarry: QuarryIcon,
+  town_hall: TownHallIcon,
 };
 
 const COLORS: Record<BuildingKind, string> = {
@@ -35,6 +44,8 @@ const COLORS: Record<BuildingKind, string> = {
   mine: "text-gold",
   lumberjack: "text-amber-800",
   house: "text-stone-500",
+  quarry: "text-stone-600",
+  town_hall: "text-indigo-700",
 };
 
 type Props = {
@@ -72,8 +83,8 @@ export function BuildingPanel({
   const Icon = ICONS[building.kind];
   const color = COLORS[building.kind];
   const level = building.level;
-  const atMax = isMaxLevel(building.kind, level);
-  const cost = upgradeCost(building.kind, level);
+  const atMax = isMaxLevel(building.kind, level, getMaxLevelBonus(state));
+  const cost = upgradeCost(building.kind, level, getUpgradeCostMultiplier(state));
   const affordable = canAfford(liveResources, cost);
   const canUpgrade = !readOnly && !atMax && affordable && !pending;
   const refund = sellRefund(building.kind, level);
@@ -81,8 +92,9 @@ export function BuildingPanel({
 
   const housing = isHousing(building.kind);
 
-  // Bâtiment de production : production réelle = taux/ouvrier × ouvriers.
-  const output = effectiveRate(building);
+  // Bâtiment de production : production réelle = taux/ouvrier × ouvriers ×
+  // multiplicateur de tech (via state).
+  const output = effectiveRate(building, state);
   const perWorkerRate = buildingRate(building.kind, level);
   const capacity = workerCapacity(building.kind, level);
   const available = availablePopulation(state);

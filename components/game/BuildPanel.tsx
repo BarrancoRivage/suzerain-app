@@ -1,19 +1,24 @@
 "use client";
 
 import { BUILDINGS } from "@/lib/game/buildings";
+import { countBuildings } from "@/lib/game/engine";
 import { RESOURCE_LABELS } from "@/lib/game/resources";
-import type { BuildingKind, Resources } from "@/lib/game/types";
+import type { BuildingKind, GameState } from "@/lib/game/types";
 import { canAfford, formatCost } from "./cost";
 import { FarmIcon } from "./icons/FarmIcon";
 import { HouseIcon } from "./icons/HouseIcon";
 import { LumberjackIcon } from "./icons/LumberjackIcon";
 import { MineIcon } from "./icons/MineIcon";
+import { QuarryIcon } from "./icons/QuarryIcon";
+import { TownHallIcon } from "./icons/TownHallIcon";
 
 const ICONS: Record<BuildingKind, typeof FarmIcon> = {
   farm: FarmIcon,
   mine: MineIcon,
   lumberjack: LumberjackIcon,
   house: HouseIcon,
+  quarry: QuarryIcon,
+  town_hall: TownHallIcon,
 };
 
 const COLORS: Record<BuildingKind, string> = {
@@ -21,27 +26,35 @@ const COLORS: Record<BuildingKind, string> = {
   mine: "text-gold",
   lumberjack: "text-amber-800",
   house: "text-stone-500",
+  quarry: "text-stone-600",
+  town_hall: "text-indigo-700",
 };
+
+// Bâtiments uniques par fief — l'UI désactive le bouton dès qu'un est posé,
+// en miroir du garde-fou côté engine (placeBuilding → GameError ALREADY_BUILT).
+const UNIQUE: ReadonlySet<BuildingKind> = new Set(["town_hall"]);
 
 type Props = {
   selected: BuildingKind | null;
   onSelect: (kind: BuildingKind | null) => void;
   disabled: boolean;
-  resources: Resources;
+  state: GameState;
 };
 
 // Liste verticale des bâtiments à poser, affichée dépliée dans le panneau
 // d'actions. L'en-tête, la consigne de pose et le positionnement sont portés
 // par ActionPanel.
-export function BuildPanel({ selected, onSelect, disabled, resources }: Props) {
+export function BuildPanel({ selected, onSelect, disabled, state }: Props) {
   return (
     <div className="flex flex-col gap-2">
       {Object.values(BUILDINGS).map((def) => {
         const isSelected = selected === def.kind;
         const Icon = ICONS[def.kind];
         const color = COLORS[def.kind];
-        const affordable = canAfford(resources, def.cost);
-        const buttonDisabled = disabled || !affordable;
+        const affordable = canAfford(state.resources, def.cost);
+        const alreadyBuilt =
+          UNIQUE.has(def.kind) && countBuildings(state, def.kind) > 0;
+        const buttonDisabled = disabled || !affordable || alreadyBuilt;
 
         return (
           <button
@@ -61,7 +74,9 @@ export function BuildPanel({ selected, onSelect, disabled, resources }: Props) {
                 {def.label}
               </div>
               <div className="font-sans text-xs text-ink/60">
-                {def.populationCapacity != null ? (
+                {alreadyBuilt ? (
+                  <span className="italic">Déjà construit</span>
+                ) : def.populationCapacity != null ? (
                   <>
                     +{def.populationCapacity} population · {formatCost(def.cost)}
                   </>
